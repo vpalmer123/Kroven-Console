@@ -1,0 +1,21 @@
+# Python
+backend/venv/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# Environment / secrets
+backend/.env
+.env
+*.env.local
+
+# Models (usually large binary artifacts — remove this line if you want it tracked)
+backend/app/models/*.keras
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/

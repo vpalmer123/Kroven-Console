@@ -1,0 +1,4 @@
+# Runs on your LAN, not on Railway — Kasa and Shelly are local-network devices.
+python-kasa>=0.10.0
+httpx>=0.27
+python-dotenv>=1.0

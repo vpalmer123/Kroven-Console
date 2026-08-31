@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Kroven — Agent Orchestration Console</title>
+    <title>Kroven — Home Energy</title>
     <script type="module">
 (function(){const t=document.createElement("link").relList;if(t&&t.supports&&t.supports("modulepreload"))return;for(const l of document.querySelectorAll('link[rel="modulepreload"]'))r(l);new MutationObserver(l=>{for(const o of l)if(o.type==="childList")for(const i of o.addedNodes)i.tagName==="LINK"&&i.rel==="modulepreload"&&r(i)}).observe(document,{childList:!0,subtree:!0});function n(l){const o={};return l.integrity&&(o.integrity=l.integrity),l.referrerPolicy&&(o.referrerPolicy=l.referrerPolicy),l.crossOrigin==="use-credentials"?o.credentials="include":l.crossOrigin==="anonymous"?o.credentials="omit":o.credentials="same-origin",o}function r(l){if(l.ep)return;l.ep=!0;const o=n(l);fetch(l.href,o)}})();var Xu={exports:{}},rl={},Zu={exports:{}},L={};/**
  * @license React
@@ -63,7 +63,7 @@ Next step: retrain on the user's own real usage data once they share it.`,Gt=`ST
 8. WEB SEARCH: You have a live web search tool — use it when the answer needs current info (utility rates, weather, tariff schedules, device specs, news) instead of guessing. Don't search for stuff you already know cold.
 10. PREDICTION MARKETS: If a user message includes a block starting with "[Live Polymarket odds", those are REAL current market-implied probabilities for a relevant question — use them directly when they're relevant to what's being asked (cite the probability naturally, like "the market's pricing it at 62%"). If that block is missing or irrelevant to the question, just answer normally, don't mention Polymarket at all.
 11. LIVE DEVICE/WEATHER: If a user message includes a block starting with "[LIVE DEVICE DATA" or "[LIVE WEATHER DATA", that's REAL data just pulled straight from their browser/device — use it directly and confidently, don't hedge or ask them to double check it, and don't ask them to manually tell you their battery % or local temp since you already have it. If those blocks are missing (browser doesn't support it, permission denied, or question wasn't about battery/weather), just answer normally without mentioning it.
-9. DATA: If the user hasn't shared any usage numbers yet, tell them EXACTLY this and nothing else about how: there's a small “📊 Your data” button in the bottom-left corner of the page — click it, a box opens where they can either paste their numbers directly into the text box, or click “Upload file” to choose a .txt or .csv file from their device, then click “Use my data.” NEVER mention a paperclip icon, an upload button in the chat/message box, drag-and-drop onto the chat, emailing a file, or any other method — those don't exist on this page and would be wrong information. There is exactly ONE way to share data: the “Your data” panel in the bottom-left corner. Never assume or name a specific brand, device, or utility company — keep it generic and let them tell you what they've got. Keep the ask short and clear. If someone asks how to get “energy data” off their computer specifically, do NOT suggest powercfg /energy or any Windows/Mac battery-diagnostic report — those tools report efficiency problems (bad drivers, sleep settings), not actual watts or kWh, and are a dead end here. Instead, steer them to their real electric bill, utility account usage history, or a home energy monitor/smart meter as the actual source of real numbers.`,Yu={solar:{name:"Solar Agent",role:"PV forecast & curtailment",get sys(){return `You are the Solar Agent in Kroven, an AI energy orchestration platform. You handle solar PV production forecasting, curtailment decisions, and inverter optimization. Answer in ONE casual sentence, like you're texting a friend who gets it. Drop in a real number when it helps. Ground answers in the real user data provided.
+9. DATA: If the user hasn't shared any usage numbers yet, tell them EXACTLY this and nothing else about how: there's a small “📊 Your data” button on the page — click it, a box opens where they can either paste their numbers directly into the text box, or click “Upload file” to choose a .txt or .csv file from their device, then click “Use my data.” NEVER mention a paperclip icon, an upload button in the chat/message box, drag-and-drop onto the chat, emailing a file, or any other method — those don't exist on this page and would be wrong information. There is exactly ONE way to share data: the “Your data” panel in the bottom-left corner. Never assume or name a specific brand, device, or utility company — keep it generic and let them tell you what they've got. Keep the ask short and clear. If someone asks how to get “energy data” off their computer specifically, do NOT suggest powercfg /energy or any Windows/Mac battery-diagnostic report — those tools report efficiency problems (bad drivers, sleep settings), not actual watts or kWh, and are a dead end here. Instead, steer them to their real electric bill, utility account usage history, or a home energy monitor/smart meter as the actual source of real numbers.`,Yu={solar:{name:"Solar Agent",role:"PV forecast & curtailment",get sys(){return `You are the Solar Agent in Kroven, an AI energy orchestration platform. You handle solar PV production forecasting, curtailment decisions, and inverter optimization. Answer in ONE casual sentence, like you're texting a friend who gets it. Drop in a real number when it helps. Ground answers in the real user data provided.
 
 `+dataBlock()+`
 
@@ -98,8 +98,8 @@ Pick 1-3 agents. If the request is general chat or unclear, pick [] and put a di
 
 `+Yt+`
 
-`+Gt;async function fetchPoly(q){try{const r=await fetch("/api/polymarket?q="+encodeURIComponent(q));const d=await r.json();return (d.results&&d.results.length)?d.results.join("\n"):null;}catch{return null;}}async function getBatteryInfo(q){if(!/battery|charg|power (left|remaining)|percent/i.test(q))return null;try{if(!navigator.getBattery)return "Battery Status API not supported in this browser (works on Chrome/Edge desktop, not Safari/iOS).";const b=await navigator.getBattery();const pct=Math.round(b.level*100);const charging=b.charging;let extra="";if(charging&&isFinite(b.chargingTime)&&b.chargingTime>0)extra=", ~"+Math.round(b.chargingTime/60)+" min until full";if(!charging&&isFinite(b.dischargingTime)&&b.dischargingTime>0)extra=", ~"+Math.round(b.dischargingTime/60)+" min remaining at current usage";return "Device battery (real, read from this browser just now): "+pct+"%, "+(charging?"charging":"not charging")+extra;}catch{return null;}}function getPosition(){return new Promise((res,rej)=>{if(!navigator.geolocation)return rej("no geo");navigator.geolocation.getCurrentPosition(p=>res(p),e=>rej(e),{timeout:4000});});}async function getLocalWeather(q){if(!/weather|temp(erature)?\b|degrees|how hot|how cold|outside right now/i.test(q))return null;try{const pos=await getPosition();const lat=pos.coords.latitude,lon=pos.coords.longitude;const r=await fetch("https://api.open-meteo.com/v1/forecast?latitude="+lat+"&longitude="+lon+"&current=temperature_2m,apparent_temperature&temperature_unit=fahrenheit");const d=await r.json();if(!d.current)return null;return "Local weather (real, from user's device location just now): "+Math.round(d.current.temperature_2m)+"°F, feels like "+Math.round(d.current.apparent_temperature)+"°F";}catch{return null;}}async function Gl(e,t){const hid=(function(){let h=localStorage.getItem("kroven_household_id");if(!h){h=(crypto.randomUUID?crypto.randomUUID():"h-"+Date.now()+"-"+Math.random().toString(36).slice(2));localStorage.setItem("kroven_household_id",h);}return h;})();const msg=(t&&t.length?t[t.length-1].content:"")||"";const r=await(await fetch("https://kroven-console-production.up.railway.app/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({household_id:hid,message:msg})})).json();if(r.error)throw new Error(r.error.message||"API error");if(!r.content)throw new Error("Empty response from API");return(r.content||[]).filter(l=>l.type==="text").map(l=>l.text).join(`
-`)}function Id(){const[e,t]=Ie.useState(""),[n,r]=Ie.useState([{from:"lead",text:"hey, I'm your Energy Lead — drop your usage numbers in below if you've got them, or just ask me anything."}]),[l,o]=Ie.useState({}),[i,u]=Ie.useState([]),[s,f]=Ie.useState(!1),h=Ie.useRef([]),m=Ie.useRef(null);Ie.useEffect(()=>{var a;(a=m.current)==null||a.scrollIntoView({behavior:"smooth"})},[n,i]);const p=a=>u(c=>[...c,{t:a,ts:new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",second:"2-digit"})}]);async function g(a){let c=(a??e).trim();if(!(!c||s)){c.length>500&&(c=c.slice(0,500)),t(""),f(!0),o({}),r(v=>[...v,{from:"user",text:c}]),p("⚡ Supervisor: routing request…");try{const[poly,batt,wthr]=await Promise.all([fetchPoly(c),getBatteryInfo(c),getLocalWeather(c)]);let cAug=c;if(poly)cAug+="\n\n[Live Polymarket odds, for reference only, cite naturally if relevant, ignore if not: "+poly+"]";if(batt)cAug+="\n\n[LIVE DEVICE DATA: "+batt+"]";if(wthr)cAug+="\n\n[LIVE WEATHER DATA: "+wthr+"]";const v=[...h.current,{role:"user",content:cAug}],k=await Gl(jd(),v);let E;try{E=JSON.parse(k.replace(/```json|```/g,"").trim())}catch{E={agents:[],reasoning:k}}if(!E.agents||E.agents.length===0){p("Supervisor: handled directly, no routing needed");const R=E.reasoning||"Handled.";r(P=>[...P,{from:"lead",text:R}]),h.current=[...v,{role:"assistant",content:R}],f(!1);return}p(`Supervisor → [${E.agents.join(", ")}] — ${E.reasoning}`);const _=[];for(const R of E.agents){const P=Yu[R];if(!P)continue;o(Pe=>({...Pe,[R]:"active"})),p(`→ ${P.name} working…`);const ae=await Gl(P.sys,v);o(Pe=>({...Pe,[R]:"done"})),p(`✓ ${P.name} returned`),_.push({key:R,name:P.name,out:ae}),r(Pe=>[...Pe,{from:R,text:ae}])}let N=_.map(R=>`${R.name}: ${R.out}`).join(`
+`+Gt;async function fetchPoly(q){try{const r=await fetch("/api/polymarket?q="+encodeURIComponent(q));const d=await r.json();return (d.results&&d.results.length)?d.results.join("\n"):null;}catch{return null;}}async function getBatteryInfo(q){if(!/b[ae]?t+e?r?(y|ies)|charg|power (left|remaining)|percent|pct/i.test(q))return null;try{if(!navigator.getBattery)return "Battery Status API not supported in this browser (works on Chrome/Edge desktop, not Safari/iOS).";const b=await navigator.getBattery();const pct=Math.round(b.level*100);const charging=b.charging;let extra="";if(charging&&isFinite(b.chargingTime)&&b.chargingTime>0)extra=", ~"+Math.round(b.chargingTime/60)+" min until full";if(!charging&&isFinite(b.dischargingTime)&&b.dischargingTime>0)extra=", ~"+Math.round(b.dischargingTime/60)+" min remaining at current usage";return "Device battery (real, read from this browser just now): "+pct+"%, "+(charging?"charging":"not charging")+extra;}catch{return null;}}function getPosition(){return new Promise((res,rej)=>{if(!navigator.geolocation)return rej("no geo");navigator.geolocation.getCurrentPosition(p=>res(p),e=>rej(e),{timeout:4000});});}async function getLocalWeather(q){if(!/we+a?th+e?r|temp(erature|rature|eratre)?\b|degrees|how hot|how cold|outside|forecast|tomorrow|later today|tonight|rest of the day|next few (hours|days)|this week|hotter|colder|warm up|cool (down|off)|rain|sun(ny)?|wind/i.test(q))return null;try{const pos=await getPosition();const lat=pos.coords.latitude,lon=pos.coords.longitude;const u="https://api.open-meteo.com/v1/forecast?latitude="+lat+"&longitude="+lon+"&current=temperature_2m,apparent_temperature"+"&hourly=temperature_2m,precipitation_probability"+"&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max"+"&forecast_days=3&temperature_unit=fahrenheit&timezone=auto";const r=await fetch(u);const d=await r.json();if(!d.current)return null;var out="Local weather for this person (real, Open-Meteo, their device location). "+"Now: "+Math.round(d.current.temperature_2m)+"°F, feels like "+Math.round(d.current.apparent_temperature)+"°F.";try{if(d.hourly&&d.hourly.time){var nowIso=new Date().toISOString().slice(0,13);var s=d.hourly.time.findIndex(function(t){return t.slice(0,13)>=nowIso;});if(s<0)s=0;var parts=[];for(var i=s;i<Math.min(s+8,d.hourly.time.length);i+=2){parts.push(d.hourly.time[i].slice(11,16)+" "+Math.round(d.hourly.temperature_2m[i])+"°F");}if(parts.length)out+=" Next hours: "+parts.join(", ")+".";}}catch(e){}try{if(d.daily&&d.daily.time){var days=[];for(var j=0;j<Math.min(3,d.daily.time.length);j++){var lbl=j===0?"today":(j===1?"tomorrow":d.daily.time[j]);days.push(lbl+" high "+Math.round(d.daily.temperature_2m_max[j])+"°F / low "+Math.round(d.daily.temperature_2m_min[j])+"°F"+(d.daily.precipitation_probability_max&&d.daily.precipitation_probability_max[j]!=null?", rain "+d.daily.precipitation_probability_max[j]+"%":""));}if(days.length)out+=" Forecast: "+days.join("; ")+".";}}catch(e){}return out;}catch{return null;}}const KPOOL=["how much have i used lately","whats my highest reading so far","when do i actually use the most power","hows my usage trending","whats still drawing power right now","did i use more last night than usual","break down where my power went","hows the weather looking tomorrow","is it warming up this week","whats running in my place","how many readings do you have from me","whats my quietest time of day"];const KPROMPTS=(function(){var a=KPOOL.slice(),i,j,t;for(i=a.length-1;i>0;i--){j=Math.floor(Math.random()*(i+1));t=a[i];a[i]=a[j];a[j]=t;}return a.slice(0,3);})();async function getRegion(){try{var c=localStorage.getItem("kroven_region");if(c&&c.indexOf("|")>-1)return c;}catch(e){}if(!navigator.geolocation)return "__unsupported__";var st="";try{if(navigator.permissions&&navigator.permissions.query){var pm=await navigator.permissions.query({name:"geolocation"});st=pm.state;}}catch(e){}if(st==="denied")return "__denied__";try{var pos=await new Promise(function(res,rej){navigator.geolocation.getCurrentPosition(res,rej,{timeout:9000,maximumAge:600000,enableHighAccuracy:false});});var la=pos.coords.latitude,lo=pos.coords.longitude;var r=await fetch("https://api.bigdatacloud.net/data/reverse-geocode-client?latitude="+la+"&longitude="+lo+"&localityLanguage=en");var d=await r.json();var ad=(d.localityInfo&&d.localityInfo.administrative)||[],cty="";for(var i=0;i<ad.length;i++){var nm=ad[i]&&ad[i].name||"";if(/ County$/i.test(nm)){cty=nm;break;}}var reg=[(d.city||d.locality||""),cty,(d.principalSubdivision||""),(d.countryCode||"")].join("|");if(reg.split("|").join("").trim()==="")return "__unavailable__";try{localStorage.setItem("kroven_region",reg);}catch(e){}return reg;}catch(e){return (e&&e.code===1)?"__denied__":"__unavailable__";}}async function Gl(e,t){const hid=(function(){let h=localStorage.getItem("kroven_household_id");if(!h){h=(crypto.randomUUID?crypto.randomUUID():"h-"+Date.now()+"-"+Math.random().toString(36).slice(2));localStorage.setItem("kroven_household_id",h);}return h;})();const msg=(t&&t.length?t[t.length-1].content:"")||"";const kctx=await Promise.all([getBatteryInfo(msg).catch(()=>null),getLocalWeather(msg).catch(()=>null),getRegion().catch(()=>null)]);const r=await(await fetch("https://kroven-console-production.up.railway.app/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({household_id:hid,message:msg,user_data:(typeof window!=="undefined"&&window.__userData)||null,device_context:kctx[0]||null,weather_context:kctx[1]||null,region:kctx[2]||null,history:((t||[]).filter(function(m){return m&&(m.role==="user"||m.role==="assistant")&&typeof m.content==="string"}).slice(-20))})})).json();if(r.error)throw new Error(r.error.message||"API error");if(!r.content)throw new Error("Empty response from API");return(r.content||[]).filter(l=>l.type==="text").map(l=>l.text).join(`
+`)}function Id(){const[e,t]=Ie.useState(""),[n,r]=Ie.useState([{from:"lead",text:"Hey — ask me anything about your energy. When to run things, what it costs, why your bill moved."}]),[l,o]=Ie.useState({}),[i,u]=Ie.useState([]),[s,f]=Ie.useState(!1),h=Ie.useRef([]),m=Ie.useRef(null);Ie.useEffect(()=>{var a;(a=m.current)==null||a.scrollIntoView({behavior:"smooth"})},[n,i]);const p=a=>u(c=>[...c,{t:a,ts:new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",second:"2-digit"})}]);async function g(a){let c=(a??e).trim();if(!(!c||s)){c.length>500&&(c=c.slice(0,500)),t(""),f(!0),o({}),r(v=>[...v,{from:"user",text:c}]),p("⚡ thinking…");try{const[poly,batt,wthr]=await Promise.all([fetchPoly(c),getBatteryInfo(c),getLocalWeather(c)]);let cAug=c;if(poly)cAug+="\n\n[Live Polymarket odds, for reference only, cite naturally if relevant, ignore if not: "+poly+"]";if(batt)cAug+="\n\n[LIVE DEVICE DATA: "+batt+"]";if(wthr)cAug+="\n\n[LIVE WEATHER DATA: "+wthr+"]";const v=[...h.current,{role:"user",content:cAug}],k=await Gl(jd(),v);let E;try{E=JSON.parse(k.replace(/```json|```/g,"").trim())}catch{E={agents:[],reasoning:k}}if(!E.agents||E.agents.length===0){p("answered");const R=E.reasoning||"Handled.";r(P=>[...P,{from:"lead",text:R}]),h.current=[...v,{role:"assistant",content:R}],f(!1);return}p(`Supervisor → [${E.agents.join(", ")}] — ${E.reasoning}`);const _=[];for(const R of E.agents){const P=Yu[R];if(!P)continue;o(Pe=>({...Pe,[R]:"active"})),p(`→ ${P.name} working…`);const ae=await Gl(P.sys,v);o(Pe=>({...Pe,[R]:"done"})),p(`✓ ${P.name} returned`),_.push({key:R,name:P.name,out:ae}),r(Pe=>[...Pe,{from:R,text:ae}])}let N=_.map(R=>`${R.name}: ${R.out}`).join(`
 
 `);if(_.length>1){p("Supervisor: synthesizing…");const R=await Gl(`You are the Energy Lead supervisor in Kroven. Given specialist agent outputs, write a 2-3 sentence coordinated plan for the user. Be direct.
 
@@ -114,16 +114,111 @@ ${_.map(P=>`${P.name}: ${P.out}`).join(`
 
 `)}`}]);r(P=>[...P,{from:"lead",text:R}]),N=N+`
 
-Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● Workflow complete")}catch(v){p("✗ Error: "+v.message),r(k=>[...k,{from:"lead",text:"Workflow failed: "+v.message}])}f(!1)}}const w=a=>a==="active"?"#F5A524":a==="done"?"#3ED598":"#3A4256",S={user:"#1C2333",lead:"#12263A",solar:"#2A2210",battery:"#102A1E",grid:"#1E1730",forecast:"#2A1220"},j={lead:"#4FB3FF",solar:"#F5A524",battery:"#3ED598",grid:"#B18CFF",forecast:"#FF6B9D"},d={lead:"ENERGY LEAD",solar:"SOLAR",battery:"BATTERY",grid:"GRID",forecast:"FORECAST"};return F.jsxs("div",{style:{fontFamily:"'IBM Plex Mono', ui-monospace, Menlo, monospace",background:"#0B0F17",color:"#DCE3F0",minHeight:"100vh",display:"flex",flexDirection:"column"},children:[F.jsxs("div",{style:{padding:"14px 18px",borderBottom:"1px solid #1C2333",display:"flex",alignItems:"baseline",gap:10},children:[F.jsx("span",{style:{fontSize:18,fontWeight:700,letterSpacing:2},children:"KROVEN"}),F.jsx("span",{style:{fontSize:11,color:"#6B7690"},children:"agent orchestration console · supervisor pattern · claude-sonnet-4-6"})]}),F.jsxs("div",{style:{display:"flex",flex:1,minHeight:0},children:[F.jsxs("div",{style:{width:190,borderRight:"1px solid #1C2333",padding:12,display:"flex",flexDirection:"column",gap:10},children:[F.jsx("div",{style:{fontSize:10,color:"#6B7690",letterSpacing:1.5},children:"AGENT TEAM"}),F.jsx(Gu,{name:"Energy Lead",role:"Supervisor / Router",color:"#4FB3FF",st:s?"active":"idle",dot:w}),Object.entries(Yu).map(([a,c])=>F.jsx(Gu,{name:c.name,role:c.role,color:j[a],st:l[a]||"idle",dot:w},a)),F.jsx("div",{style:{marginTop:"auto",fontSize:10,color:"#6B7690",letterSpacing:1.5},children:"TRACE"}),F.jsx("div",{style:{overflowY:"auto",maxHeight:220,fontSize:10.5,lineHeight:1.5,color:"#8B96B0"},children:i.map((a,c)=>F.jsxs("div",{style:{marginBottom:4},children:[F.jsxs("span",{style:{color:"#3A4256"},children:[a.ts," "]}),a.t]},c))})]}),F.jsxs("div",{style:{flex:1,display:"flex",flexDirection:"column",minWidth:0},children:[F.jsxs("div",{style:{flex:1,overflowY:"auto",padding:18},children:[n.map((a,c)=>F.jsx("div",{style:{marginBottom:14,display:"flex",justifyContent:a.from==="user"?"flex-end":"flex-start"},children:F.jsxs("div",{style:{maxWidth:"78%",background:S[a.from]||"#12263A",border:"1px solid #232B3F",borderRadius:6,padding:"10px 12px",fontSize:13,lineHeight:1.55},children:[a.from!=="user"&&F.jsx("div",{style:{fontSize:9.5,letterSpacing:1.5,color:j[a.from],marginBottom:5},children:d[a.from]}),a.text]})},c)),s&&F.jsx("div",{style:{fontSize:11,color:"#6B7690"},children:"agents working…"}),F.jsx("div",{ref:m})]}),F.jsx("div",{style:{padding:"0 18px 8px",display:"flex",gap:8,flexWrap:"wrap"},children:["Profile my usage patterns from my real data.","What did the LSTM model prove and what does it predict for me?","What does my winter spike mean for TOU electricity costs?"].map(a=>F.jsx("button",{onClick:()=>g(a),disabled:s,style:{background:"none",border:"1px solid #232B3F",color:"#8B96B0",borderRadius:20,padding:"5px 11px",fontSize:11,cursor:"pointer",fontFamily:"inherit"},children:a},a))}),F.jsxs("div",{style:{padding:"10px 18px 16px",display:"flex",gap:8},children:[F.jsx("input",{value:e,onChange:a=>t(a.target.value),onKeyDown:a=>a.key==="Enter"&&g(),placeholder:"Orchestrate something…",style:{flex:1,background:"#12172A",border:"1px solid #232B3F",color:"#DCE3F0",borderRadius:6,padding:"10px 12px",fontSize:13,fontFamily:"inherit",outline:"none"}}),F.jsx("button",{onClick:()=>g(),disabled:s,style:{background:s?"#232B3F":"#F5A524",color:s?"#6B7690":"#0B0F17",border:"none",borderRadius:6,padding:"10px 18px",fontSize:13,fontWeight:700,cursor:s?"default":"pointer",fontFamily:"inherit"},children:"RUN"})]})]})]})]})}function Gu({name:e,role:t,color:n,st:r,dot:l}){return F.jsxs("div",{style:{border:"1px solid #232B3F",borderLeft:`3px solid ${n}`,borderRadius:5,padding:"8px 10px",background:r==="active"?"#141B2C":"#0E1320"},children:[F.jsxs("div",{style:{display:"flex",alignItems:"center",gap:6},children:[F.jsx("span",{style:{width:7,height:7,borderRadius:"50%",background:l(r),boxShadow:r==="active"?`0 0 6px ${l(r)}`:"none"}}),F.jsx("span",{style:{fontSize:12,fontWeight:600},children:e})]}),F.jsx("div",{style:{fontSize:10,color:"#6B7690",marginTop:3},children:t}),F.jsx("div",{style:{fontSize:9,letterSpacing:1.5,marginTop:4,color:l(r)},children:r.toUpperCase()})]})}Xl.createRoot(document.getElementById("root")).render(F.jsx(Id,{}));
+Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}catch(v){p("✗ failed: "+v.message),r(k=>[...k,{from:"lead",text:"Workflow failed: "+v.message}])}f(!1)}}const w=a=>a==="active"?"#4C8DFF":a==="done"?"#3DD68C":"#5A6883",S={user:"#1E2A42",lead:"#161E2E",solar:"#2A2416",battery:"#152A20",grid:"#221B33",forecast:"#2E1A25"},j={lead:"#7FB0FF",solar:"#E0A44E",battery:"#54C98C",grid:"#A98CE8",forecast:"#E8749F"},d={lead:"",solar:"SOLAR",battery:"BATTERY",grid:"GRID",forecast:"FORECAST"};return F.jsxs("div",{className:"k-app",style:{fontFamily:"var(--k-font)",background:"var(--k-bg)",color:"var(--k-text)",minHeight:"100vh",display:"flex",flexDirection:"column"},children:[F.jsxs("div",{className:"k-header",style:{padding:"11px 20px",borderBottom:"1px solid var(--k-border)",display:"flex",alignItems:"baseline",gap:12,flexWrap:"wrap"},children:[F.jsxs("span",{style:{display:"inline-flex",flexDirection:"column",lineHeight:1},children:[F.jsx("span",{style:{fontSize:19,fontWeight:700,letterSpacing:1.4},children:"KROVEN"}),F.jsx("span",{style:{fontSize:8,letterSpacing:2.4,marginTop:3,opacity:.55,fontWeight:600},children:"MOL"})]}),F.jsx("span",{style:{fontSize:13,color:"var(--k-text-2)"},children:"multi-domain orchestration layer"})]}),F.jsxs("div",{style:{display:"flex",flex:1,minHeight:0},children:[F.jsxs("div",{className:"k-side",style:{width:224,flex:"0 0 auto",maxWidth:"18vw",minWidth:0,borderRight:"1px solid var(--k-border)",background:"var(--k-panel)",padding:16,display:"flex",flexDirection:"column",gap:12},children:[F.jsx("div",{style:{fontSize:11,fontWeight:600,color:"var(--k-text-3)",letterSpacing:1.2},children:"ASSISTANT"}),F.jsx(Gu,{name:"Kroven",role:"MOL · multi-domain orchestration",color:"var(--k-accent)",st:s?"active":"idle",dot:w}),F.jsx("div",{style:{marginTop:"auto",fontSize:11,fontWeight:600,color:"var(--k-text-3)",letterSpacing:1.2},children:"ACTIVITY"}),F.jsx("div",{style:{overflowY:"auto",maxHeight:220,fontSize:12,lineHeight:1.65,color:"var(--k-text-2)",fontFamily:"var(--k-mono)"},children:i.map((a,c)=>F.jsxs("div",{style:{marginBottom:4},children:[F.jsxs("span",{style:{color:"var(--k-text-3)"},children:[a.ts," "]}),a.t]},c))})]}),F.jsxs("div",{style:{flex:1,display:"flex",flexDirection:"column",minWidth:0},children:[F.jsxs("div",{className:"k-msgs",style:{flex:1,overflowY:"auto",padding:"30px clamp(20px, calc((100% - 760px) / 2), 110px)"},children:[n.map((a,c)=>F.jsx("div",{className:"k-msg",style:{marginBottom:20,display:"flex",justifyContent:a.from==="user"?"flex-end":"flex-start"},children:F.jsxs("div",{style:{maxWidth:a.from==="user"?"78%":"100%",background:a.from==="user"?"var(--k-panel)":"transparent",border:a.from==="user"?"1px solid var(--k-border)":"none",borderRadius:16,padding:a.from==="user"?"12px 16px":"2px 0",fontSize:15,lineHeight:1.75},children:[a.from!=="user"&&d[a.from]&&F.jsx("div",{style:{fontSize:10.5,fontWeight:700,letterSpacing:1.3,color:j[a.from],marginBottom:8},children:d[a.from]}),F.jsx("div",{className:"k-md",dangerouslySetInnerHTML:{__html:Kmd(a.text)}})]})},c)),s&&F.jsx("div",{className:"k-thinking",children:"Kroven"}),F.jsx("div",{ref:m})]}),F.jsx("div",{className:"k-chips",style:{padding:"0 clamp(20px, calc((100% - 760px) / 2), 110px) 12px",display:"flex",gap:8,flexWrap:"wrap"},children:KPROMPTS.map(a=>F.jsx("button",{onClick:()=>g(a),disabled:s,className:"k-chip",style:{background:"var(--k-surface)",border:"1px solid var(--k-border)",color:"var(--k-text-2)",borderRadius:20,padding:"9px 14px",fontSize:13,cursor:"pointer",fontFamily:"inherit",transition:"background .15s ease,border-color .15s ease,color .15s ease"},children:a},a))}),F.jsxs("div",{className:"k-inputrow",style:{padding:"12px clamp(20px, calc((100% - 760px) / 2), 110px) 24px",display:"flex",gap:10},children:[F.jsx("input",{value:e,onChange:a=>t(a.target.value),onKeyDown:a=>a.key==="Enter"&&g(),placeholder:"Ask about your energy…",className:"k-input",style:{flex:1,background:"var(--k-surface)",border:"1px solid var(--k-border-strong)",color:"var(--k-text)",borderRadius:24,padding:"14px 20px",fontSize:15,fontFamily:"inherit",outline:"none",transition:"border-color .15s ease,box-shadow .15s ease"}}),F.jsx("button",{onClick:()=>g(),disabled:s,className:"k-run",style:{background:s?"var(--k-border)":"var(--k-accent)",color:s?"var(--k-text-3)":"#FFFFFF",border:"none",borderRadius:24,padding:"14px 26px",fontSize:14,fontWeight:600,cursor:s?"default":"pointer",fontFamily:"inherit",transition:"filter .15s ease"},children:"Send"})]})]})]})]})}function Kmd(s){var e=String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");e=e.replace(/```([\s\S]*?)```/g,function(m,c){return "<pre><code>"+c.replace(/^\n/,"")+"</co"+"de></pr"+"e>"});e=e.replace(/`([^`\n]+)`/g,"<code>$1</co"+"de>");e=e.replace(/\*\*([^*]+)\*\*/g,"<strong>$1</stro"+"ng>");e=e.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g,"$1<em>$2</e"+"m>");var L=e.split(/\n/),o=[],k=null,i,t,u,d,h;for(i=0;i<L.length;i++){t=L[i].trim();if(/^(-{3,}|_{3,}|\*{3,})$/.test(t)){if(k){o.push("</"+k+">");k=null}o.push("<hr>");continue}h=/^(#{1,6})\s+(.*)$/.exec(t);if(h){if(k){o.push("</"+k+">");k=null}o.push('<div class="k-h">'+h[2]+"</d"+"iv>");continue}u=/^[-*]\s+(.*)$/.exec(t);d=/^\d+[.)]\s+(.*)$/.exec(t);if(u){if(k!=="ul"){if(k)o.push("</"+k+">");o.push("<ul>");k="ul"}o.push("<li>"+u[1]+"</l"+"i>");continue}if(d){if(k!=="ol"){if(k)o.push("</"+k+">");o.push("<ol>");k="ol"}o.push("<li>"+d[1]+"</l"+"i>");continue}if(k){o.push("</"+k+">");k=null}if(t!=="")o.push("<p>"+t+"</p>");}if(k)o.push("</"+k+">");return o.join("");}function Gu({name:e,role:t,color:n,st:r,dot:l}){return F.jsxs("div",{style:{border:"1px solid var(--k-border)",borderLeft:`3px solid ${n}`,borderRadius:12,padding:"12px 14px",background:r==="active"?"var(--k-surface)":"transparent"},children:[F.jsxs("div",{style:{display:"flex",alignItems:"center",gap:6},children:[F.jsx("span",{className:r==="active"?"k-dot k-dot-active":"k-dot",style:{width:8,height:8,borderRadius:"50%",background:l(r),flexShrink:0}}),F.jsx("span",{style:{fontSize:14,fontWeight:600},children:e})]}),F.jsx("div",{style:{fontSize:12,color:"var(--k-text-2)",marginTop:4,lineHeight:1.45},children:t}),F.jsx("div",{style:{fontSize:10,fontWeight:700,letterSpacing:1.2,marginTop:6,color:l(r)},children:r==="active"?"THINKING":"READY"})]})}Xl.createRoot(document.getElementById("root")).render(F.jsx(Id,{}));
 
 </script>
+    <style>
+      :root{
+        --k-bg:#0E1420;
+        --k-surface:#161E2E;
+        --k-panel:#1B2436;
+        --k-border:#27324A;
+        --k-border-strong:#38455F;
+        --k-text:#E8EDF6;
+        --k-text-2:#A2AEC4;
+        --k-text-3:#6F7D95;
+        --k-accent:#4C8DFF;
+        --k-ok:#3DD68C;
+        --k-font:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,"Helvetica Neue",Arial,sans-serif;
+        --k-mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+      }
+      *{box-sizing:border-box}
+      html,body{background:var(--k-bg);color:var(--k-text);-webkit-text-size-adjust:100%;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+      ::selection{background:rgba(76,141,255,.32)}
+      .k-app{height:100dvh}
+      .k-msgs::-webkit-scrollbar{width:10px}
+      .k-msgs::-webkit-scrollbar-thumb{background:#2D3A54;border-radius:8px;border:3px solid var(--k-bg)}
+
+      @keyframes k-in{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+      .k-msg{animation:k-in .3s ease-out both}
+
+      .k-thinking{display:inline-flex;align-items:center;gap:9px;font-size:14.5px;
+        font-family:var(--k-font);font-weight:600;letter-spacing:.2px;
+        color:var(--k-text-2)}
+      /* the word itself gets a slow sheen so it reads as working, not stalled */
+      .k-thinking{background:linear-gradient(90deg,
+          var(--k-text-3) 0%, var(--k-text) 45%, var(--k-text-3) 90%);
+        background-size:220% 100%;
+        -webkit-background-clip:text;background-clip:text;
+        -webkit-text-fill-color:transparent;
+        animation:k-sheen 2.4s ease-in-out infinite}
+      /* three dots drawn with box-shadow, lit in sequence - no emoji, no font glyphs */
+      .k-thinking::after{content:"";width:5px;height:5px;border-radius:50%;
+        margin-left:1px;flex:0 0 auto;
+        -webkit-text-fill-color:initial;
+        animation:k-wave 1.25s linear infinite}
+      @keyframes k-sheen{0%{background-position:120% 0}100%{background-position:-40% 0}}
+      @keyframes k-wave{
+        0%,100%{background:var(--k-accent);
+          box-shadow:9px 0 0 var(--k-border-strong),18px 0 0 var(--k-border-strong)}
+        33%{background:var(--k-border-strong);
+          box-shadow:9px 0 0 var(--k-accent),18px 0 0 var(--k-border-strong)}
+        66%{background:var(--k-border-strong);
+          box-shadow:9px 0 0 var(--k-border-strong),18px 0 0 var(--k-accent)}
+      }
+
+      .k-md p{margin:0 0 10px}
+      .k-md p:first-child{margin-top:0}
+      .k-md p:last-child{margin-bottom:0}
+      .k-md ul,.k-md ol{margin:9px 0 11px;padding-left:21px}
+      .k-md li{margin:5px 0}
+      .k-md li::marker{color:var(--k-text-3)}
+      .k-md strong{font-weight:650;color:var(--k-text)}
+      .k-md code{background:var(--k-panel);padding:1.5px 5px;border-radius:5px;font-family:var(--k-mono);font-size:.88em}
+      .k-md pre{background:var(--k-panel);padding:11px 13px;border-radius:10px;overflow-x:auto;margin:9px 0}
+      .k-md pre code{background:none;padding:0}
+      .k-md hr{border:none;border-top:1px solid var(--k-border);margin:13px 0}
+      .k-md .k-h{font-weight:700;margin:12px 0 6px;font-size:1.02em}
+      .k-md .k-h:first-child{margin-top:0}
+
+      .k-dot-active{animation:k-pulse 1.4s ease-in-out infinite}
+      @keyframes k-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.78)}}
+
+      .k-input:focus{border-color:var(--k-accent)!important;box-shadow:0 0 0 3px rgba(76,141,255,.22)}
+      .k-chip:hover:not(:disabled){background:var(--k-panel)!important;border-color:var(--k-border-strong)!important;color:var(--k-text)!important}
+      .k-run:not(:disabled):hover{filter:brightness(1.07)}
+
+      #kroven-data-toggle{font-family:var(--k-font)!important;background:var(--k-accent)!important;color:#fff!important;font-size:13px!important;padding:10px 16px!important;border-radius:22px!important;box-shadow:0 6px 20px rgba(0,0,0,.45)!important}
+      #kroven-data-panel{font-family:var(--k-font)!important;background:var(--k-surface)!important;border:1px solid var(--k-border)!important;border-radius:14px!important;padding:14px!important;width:330px!important;box-shadow:0 12px 34px rgba(0,0,0,.5)!important}
+      #kroven-data-panel div[style*="letter-spacing"]{font-size:11px!important;color:var(--k-text-3)!important}
+      #kroven-data-close{color:var(--k-text-2)!important;font-size:16px!important}
+      #kroven-data-input{background:var(--k-bg)!important;color:var(--k-text)!important;border:1px solid var(--k-border)!important;border-radius:10px!important;font-family:var(--k-font)!important;font-size:13px!important;height:80px!important;padding:10px!important}
+      #kroven-data-upload{background:var(--k-bg)!important;color:var(--k-text-2)!important;border:1px solid var(--k-border)!important;border-radius:9px!important;font-size:12px!important;padding:8px 11px!important}
+      #kroven-data-submit{background:var(--k-accent)!important;color:#fff!important;border-radius:9px!important;font-size:12px!important;padding:8px 12px!important}
+      #kroven-data-status{font-size:12px!important}
+
+      @media (max-width:760px){
+        .k-side{display:none!important}
+        .k-header{padding:13px 16px!important;gap:8px!important}
+        .k-msgs{padding:18px 14px!important}
+        .k-chips{position:relative;z-index:70;padding:0 14px 10px!important;flex-wrap:nowrap!important;overflow-x:auto;scrollbar-width:none}
+        .k-chips::-webkit-scrollbar{display:none}
+        .k-chips button{flex:0 0 auto;white-space:nowrap}
+        .k-inputrow{padding:10px 14px 16px!important;gap:8px!important}
+        .k-input{font-size:16px!important;padding:13px 16px!important}
+        .k-run{padding:13px 18px!important}
+        .k-msg > div{max-width:88%!important}
+        #kroven-data-toggle{left:auto!important;right:12px!important;bottom:auto!important;top:11px!important;font-size:12px!important;padding:7px 12px!important}
+        #kroven-data-panel{left:12px!important;right:12px!important;bottom:12px!important;width:auto!important}
+      }
+    </style>
   </head>
-  <body style="margin:0">
+  <body style="margin:0;background:#0E1420">
     <div id="root"></div>
-    <button id="kroven-data-toggle" style="position:fixed;bottom:16px;left:16px;z-index:9999;font-family:monospace;background:#4FB3FF;color:#0B0F19;border:none;border-radius:20px;padding:8px 14px;font-size:11px;font-weight:700;cursor:pointer;box-shadow:0 4px 18px rgba(0,0,0,.4);">📊 Your data</button>
+    <button id="kroven-data-toggle" aria-label="Add your usage data"><span class="kd-icon" aria-hidden="true">+</span><span class="kd-text">Your data</span></button>
     <div id="kroven-data-panel" style="display:none;position:fixed;bottom:16px;left:16px;z-index:9999;font-family:monospace;background:#0B0F19;border:1px solid #1C2333;border-radius:8px;padding:10px;width:280px;max-width:calc(100vw - 32px);box-shadow:0 4px 18px rgba(0,0,0,.4);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-        <div style="font-size:10px;color:#6B7690;letter-spacing:1.5;">YOUR DATA (OPTIONAL)</div>
+        <div style="font-size:10px;color:#6B7690;letter-spacing:1.5;">Your numbers (optional)</div>
         <button id="kroven-data-close" style="background:none;border:none;color:#6B7690;font-size:14px;cursor:pointer;line-height:1;padding:0 2px;">✕</button>
       </div>
       <textarea id="kroven-data-input" placeholder="Paste your usage numbers here (monthly kWh, a utility bill, meter readings, etc)" style="width:100%;height:60px;background:#12172A;color:#E6EAF2;border:1px solid #1C2333;border-radius:6px;padding:6px;font-size:11px;font-family:monospace;resize:vertical;box-sizing:border-box;"></textarea>
@@ -144,14 +239,16 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● Workflow c
         var toggleBtn = document.getElementById('kroven-data-toggle');
         var closeBtn = document.getElementById('kroven-data-close');
         var panel = document.getElementById('kroven-data-panel');
+        window.krovenSetData = function(open){
+          panel.style.display = open ? 'block' : 'none';
+          toggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+          toggleBtn.classList.toggle('kx-active', open);
+          if (open && window.innerWidth <= 760 && window.krovenSetSignals) window.krovenSetSignals(false);
+        };
         toggleBtn.addEventListener('click', function(){
-          panel.style.display = 'block';
-          toggleBtn.style.display = 'none';
+          window.krovenSetData(panel.style.display !== 'block');
         });
-        closeBtn.addEventListener('click', function(){
-          panel.style.display = 'none';
-          toggleBtn.style.display = 'block';
-        });
+        closeBtn.addEventListener('click', function(){ window.krovenSetData(false); });
         fileBtn.addEventListener('click', function(){ fileInput.click(); });
         fileInput.addEventListener('change', function(e){
           var f = e.target.files[0];
@@ -165,14 +262,1766 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● Workflow c
           if(val){
             window.__userData = val.slice(0, 4000);
             status.textContent = '\u2713 Using your data (' + val.length + ' chars)';
-            status.style.color = '#3ED598';
+            status.style.color = '#3DD68C';
           } else {
             window.__userData = null;
             status.textContent = 'No data yet \u2014 agents will chat generally.';
-            status.style.color = '#6B7690';
+            status.style.color = '#A2AEC4';
           }
         });
       })();
     </script>
+
+    <button id="kroven-signals-toggle" aria-label="Live signals"><span class="ks-icon" aria-hidden="true">▰</span><span class="ks-text">Live signals</span></button>
+    <aside id="kroven-signals" aria-live="polite">
+      <div class="ks-head">
+        <div>
+          <div class="ks-title">Live signals</div>
+          <div class="ks-sub" id="ks-place">locating…</div>
+        </div>
+        <button id="kroven-signals-close" aria-label="Close">✕</button>
+      </div>
+      <div id="ks-body"><div class="ks-empty">Loading live data…</div></div>
+      <div class="ks-foot" id="ks-foot"></div>
+    </aside>
+    <style>
+      #kroven-signals{position:fixed;right:16px;bottom:16px;width:340px;max-height:min(70vh,620px);
+        overflow-y:auto;background:var(--k-surface,#fff);border:1px solid var(--k-border,#DCE3EB);
+        border-radius:14px;box-shadow:0 14px 40px rgba(0,0,0,.5);z-index:9998;
+        font-family:var(--k-font,system-ui);color:var(--k-text,#1B2532);padding:14px 16px}
+      #kroven-signals.ks-hidden{display:none}
+      .ks-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:12px}
+      .ks-title{font-size:14px;font-weight:650;letter-spacing:.2px}
+      .ks-sub{font-size:11.5px;color:var(--k-text-3,#8794A3);margin-top:2px}
+      #kroven-signals-close{background:none;border:none;color:var(--k-text-3,#8794A3);
+        font-size:15px;cursor:pointer;line-height:1;padding:2px 4px}
+      .ks-row{margin-bottom:13px}
+      .ks-row:last-child{margin-bottom:4px}
+      .ks-label{display:flex;justify-content:space-between;gap:10px;align-items:baseline;font-size:12.5px}
+      .ks-name{color:var(--k-text-2,#586675)}
+      .ks-val{font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap}
+      .ks-track{height:7px;border-radius:6px;background:var(--k-panel,#EDF1F6);margin-top:6px;overflow:hidden}
+      .ks-fill{height:100%;border-radius:6px;background:var(--k-accent,#1F4E79);
+        width:0;transition:width .5s cubic-bezier(.4,0,.2,1)}
+      .ks-fill.ks-warn{background:#B4772A}
+      .ks-fill.ks-alert{background:#A63D66}
+      .ks-kind{font-size:10px;letter-spacing:.4px;text-transform:uppercase;color:var(--k-text-3,#8794A3);margin-top:5px}
+      .ks-basis{font-size:11.5px;line-height:1.5;color:var(--k-text-2,#586675);margin-top:6px;
+        padding-left:9px;border-left:2px solid var(--k-border,#DCE3EB);display:none}
+      .ks-row.ks-open .ks-basis{display:block}
+      .ks-why{background:none;border:none;padding:0;margin-top:5px;font:inherit;font-size:11px;
+        color:var(--k-accent,#1F4E79);cursor:pointer;text-decoration:underline}
+      .ks-na{font-size:11.5px;color:var(--k-text-3,#8794A3);margin-top:4px}
+      .ks-empty{font-size:12.5px;color:var(--k-text-2,#586675);line-height:1.6}
+      .ks-foot{font-size:11px;color:var(--k-text-3,#8794A3);line-height:1.5;
+        border-top:1px solid var(--k-border,#DCE3EB);margin-top:12px;padding-top:10px}
+      .ks-act{background:var(--k-accent,#1F4E79);color:#fff;border:none;border-radius:8px;
+        padding:8px 12px;font:inherit;font-size:12px;cursor:pointer;margin-top:9px}
+      #kroven-signals-toggle{position:fixed;right:16px;bottom:16px;z-index:9997;
+        font-family:var(--k-font,system-ui);font-size:13px;background:var(--k-accent,#1F4E79);
+        color:#fff;border:none;border-radius:22px;padding:10px 16px;cursor:pointer;
+        box-shadow:0 8px 24px rgba(0,0,0,.45);display:none}
+      #kroven-signals-toggle.ks-show{display:block}
+      @media (max-width:1100px){
+        #kroven-signals{right:12px;left:auto;width:330px}
+      }
+      @media (max-width:760px){
+        #kroven-signals{right:8px;left:8px;width:auto;
+          bottom:calc(8px + env(safe-area-inset-bottom,0px));
+          max-height:min(58vh,420px);padding:13px 14px;border-radius:16px}
+        .ks-title{font-size:15px}
+        .ks-label{font-size:13.5px}
+        .ks-basis,.ks-foot{font-size:12px}
+        #kroven-signals-toggle{right:10px;bottom:calc(10px + env(safe-area-inset-bottom,0px));
+          font-size:13px;padding:11px 16px}
+        #kroven-signals-close{font-size:20px;padding:4px 8px;margin:-4px -6px 0 0}
+      }
+    </style>
+    <script>
+      (function(){
+        var API = "https://kroven-console-production.up.railway.app/api/signals";
+        var panel = document.getElementById('kroven-signals');
+        var toggle = document.getElementById('kroven-signals-toggle');
+        var closeBtn = document.getElementById('kroven-signals-close');
+        var body = document.getElementById('ks-body');
+        var place = document.getElementById('ks-place');
+        var foot = document.getElementById('ks-foot');
+        var timer = null;
+
+        function show(v){
+          panel.classList.toggle('ks-hidden', !v);
+          toggle.setAttribute('aria-expanded', v ? 'true' : 'false');
+          toggle.classList.toggle('kx-active', v);
+          if (v && window.innerWidth <= 760 && window.krovenSetData) window.krovenSetData(false);
+        }
+        window.krovenSetSignals = show;
+        closeBtn.addEventListener('click', function(){ show(false); });
+        toggle.addEventListener('click', function(){
+          var opening = panel.classList.contains('ks-hidden');
+          show(opening);
+          if (opening) load();
+        });
+
+        function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
+          return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+        function fillClass(s){
+          if (s.key === 'alerts' && s.value) return 'ks-fill ks-alert';
+          if (s.key === 'grid_load' && s.value >= 85) return 'ks-fill ks-warn';
+          if (s.key === 'wind' && s.value >= 50) return 'ks-fill ks-warn';
+          return 'ks-fill';
+        }
+
+        var KIND = {probability:'published probability', certainty:'scheduled — certain',
+                    measure:'measured value', state:'current condition'};
+
+        function render(data){
+          var html = '';
+          data.signals.forEach(function(s, i){
+            html += '<div class="ks-row" id="ksr' + i + '">';
+            html += '<div class="ks-label"><span class="ks-name">' + esc(s.label) + '</span>';
+            html += '<span class="ks-val">' + (s.status === 'ok' ? esc(s.display) : 'no data') + '</span></div>';
+            if (s.status === 'ok' && s.value !== null) {
+              html += '<div class="ks-track"><div class="' + fillClass(s) + '" data-w="' + Number(s.value) + '"></div></div>';
+              html += '<div class="ks-kind">' + esc(KIND[s.kind] || s.kind) + ' · ' + esc(s.source) + '</div>';
+            } else {
+              html += '<div class="ks-na">' + esc(s.detail || 'Source unavailable right now.') + '</div>';
+            }
+            if (s.basis) {
+              html += '<button class="ks-why" data-row="ksr' + i + '" aria-label="source">source</button>';
+              html += '<div class="ks-basis">' + esc(s.basis) + '<br><br>Source: ' + esc(s.source) + '</div>';
+            }
+            html += '</div>';
+          });
+          body.innerHTML = html || '<div class="ks-empty">No signals available.</div>';
+
+          body.querySelectorAll('.ks-fill').forEach(function(el){
+            void el.offsetWidth;
+            el.style.width = Math.max(0, Math.min(100, Number(el.dataset.w))) + '%';
+          });
+          body.querySelectorAll('.ks-why').forEach(function(b){
+            b.addEventListener('click', function(){
+              document.getElementById(b.dataset.row).classList.toggle('ks-open');
+            });
+          });
+
+          var f = 'Updated ' + esc((data.generated_at || '').replace('T', ' ')) + '. Live from named public sources; nothing estimated.';
+          if (data.note) f = esc(data.note) + '<br><br>' + f;
+          if (data.omitted && data.omitted.length) {
+            f += '<br><br><strong>' + esc(data.omitted[0].label) + ':</strong> ' + esc(data.omitted[0].why);
+          }
+          foot.innerHTML = f;
+        }
+
+        function needLocation(msg){
+          place.textContent = 'location needed';
+          body.innerHTML = '<div class="ks-empty">' + esc(msg) + '</div>';
+          var b = document.createElement('button');
+          b.className = 'ks-act';
+          b.textContent = 'Use my location';
+          b.addEventListener('click', function(){ locate(true); });
+          body.appendChild(b);
+          foot.textContent = 'Every reading here is tied to your actual coordinates, so there is nothing to show without them. Kroven does not substitute a default location.';
+        }
+
+        function fetchFor(lat, lon){
+          place.textContent = lat.toFixed(2) + ', ' + lon.toFixed(2);
+          var region = '';
+          try { region = localStorage.getItem('kroven_region') || ''; } catch (e) {}
+          var url = API + '?lat=' + encodeURIComponent(lat) + '&lon=' + encodeURIComponent(lon)
+                  + (region && region.indexOf('|') > -1 ? '&region=' + encodeURIComponent(region) : '');
+          fetch(url).then(function(r){ return r.json(); }).then(function(d){
+            if (d.signals) {
+              render(d);
+              try {
+                var reg = localStorage.getItem('kroven_region') || '';
+                if (reg.indexOf('|') > -1) place.textContent = reg.split('|').slice(0,2).filter(Boolean).join(', ');
+              } catch (e) {}
+            } else {
+              body.innerHTML = '<div class="ks-empty">Could not load signals: ' + esc(d.detail || 'unknown error') + '</div>';
+            }
+          }).catch(function(e){
+            body.innerHTML = '<div class="ks-empty">Could not reach the signals service. Nothing is shown rather than showing stale or invented values.</div>';
+          });
+        }
+
+        function locate(userInitiated){
+          if (!navigator.geolocation) { needLocation('This browser has no location support, so no location-specific signals can be calculated.'); return; }
+          navigator.geolocation.getCurrentPosition(
+            function(pos){
+              try { localStorage.setItem('kroven_coords', pos.coords.latitude + ',' + pos.coords.longitude); } catch (e) {}
+              fetchFor(pos.coords.latitude, pos.coords.longitude);
+            },
+            function(err){
+              if (err && err.code === 1) {
+                needLocation(userInitiated
+                  ? 'Location is blocked for this site. Allow it via the icon at the left of the address bar, then try again.'
+                  : 'These readings are calculated from your exact location. Allow location access to see them.');
+              } else {
+                needLocation('Could not get a location fix just now.');
+              }
+            },
+            {timeout: 9000, maximumAge: 300000}
+          );
+        }
+
+        function load(){
+          var c = null;
+          try { c = localStorage.getItem('kroven_coords'); } catch (e) {}
+          if (c && c.indexOf(',') > -1) {
+            var p = c.split(',');
+            fetchFor(parseFloat(p[0]), parseFloat(p[1]));
+          } else {
+            locate(false);
+          }
+        }
+
+        show(false);
+        load();
+        var wasNarrow = window.innerWidth <= 1100;
+        window.addEventListener('resize', function(){
+          var narrow = window.innerWidth <= 1100;
+          if (narrow && !wasNarrow) show(false);
+          wasNarrow = narrow;
+        });
+        timer = setInterval(function(){ if (!panel.classList.contains('ks-hidden')) load(); }, 300000);
+      })();
+    </script>
+
+    <style>
+      /* Positioning used to live in the button's inline style; it now lives here. */
+      #kroven-data-toggle{position:fixed;bottom:16px;left:16px;z-index:9999;
+        display:inline-flex;align-items:center;gap:7px;border:none;cursor:pointer}
+      #kroven-data-toggle .kd-icon{font-size:16px;line-height:1;font-weight:600;
+        opacity:.95;transform:translateY(-.5px)}
+      #kroven-signals-toggle{display:inline-flex;align-items:center;gap:7px}
+      #kroven-signals-toggle .ks-icon{font-size:11px;line-height:1;letter-spacing:-1px}
+      @media (max-width:760px){
+        /* One row of small round buttons, top-right, clear of the input. */
+        #kroven-data-toggle{top:9px!important;right:9px!important;bottom:auto!important;
+          left:auto!important;width:38px;height:38px;padding:0!important;border-radius:50%!important;
+          justify-content:center;font-size:20px!important;font-weight:500!important}
+        #kroven-data-toggle .kd-text{display:none}
+        #kroven-data-toggle .kd-icon{font-size:21px}
+        #kroven-signals-toggle{top:9px!important;right:55px!important;bottom:auto!important;
+          left:auto!important;width:38px;height:38px;padding:0!important;border-radius:50%!important;
+          justify-content:center}
+        #kroven-signals-toggle .ks-text{display:none}
+        #kroven-signals-toggle .ks-icon{font-size:13px}
+        /* Keep header text from running under those buttons. */
+        .k-header{padding-right:104px!important}
+      }
+    </style>
+
+    <style>
+      #kroven-signals-toggle,#kroven-data-toggle{transition:filter .15s ease}
+      #kroven-signals-toggle.kx-active,#kroven-data-toggle.kx-active{filter:brightness(.82)}
+      #kroven-signals-toggle{display:inline-flex!important}
+    </style>
+
+    <div id="kroven-activity" role="status" aria-live="polite">
+      <span class="ka-dot" aria-hidden="true"></span>
+      <span class="ka-line">Reading activity…</span>
+      <span class="ka-tag" id="ka-tag"></span>
+    </div>
+    <style>
+      /* Sits just above the composer, centred on the same column as the chat.
+         Fixed rather than injected into the React tree so a re-render can't
+         drop it. */
+      #kroven-activity{position:fixed;left:50%;transform:translateX(-50%);
+        bottom:78px;z-index:60;display:flex;align-items:center;gap:9px;
+        max-width:min(720px,calc(100vw - 40px));
+        padding:7px 14px;border-radius:999px;
+        background:color-mix(in srgb, var(--k-surface) 88%, transparent);
+        border:1px solid var(--k-border);
+        box-shadow:0 6px 22px rgba(0,0,0,.38);
+        font-family:var(--k-font);font-size:12.5px;color:var(--k-text-2);
+        backdrop-filter:blur(10px);white-space:nowrap;overflow:hidden;
+        opacity:0;transition:opacity .5s ease}
+      #kroven-activity.ka-in{opacity:1}
+      .ka-dot{width:7px;height:7px;border-radius:50%;background:var(--k-text-3);flex:0 0 auto}
+      #kroven-activity.ka-live .ka-dot{background:var(--k-ok);
+        box-shadow:0 0 0 0 rgba(61,214,140,.55);animation:ka-pulse 2s ease-out infinite}
+      @keyframes ka-pulse{
+        0%{box-shadow:0 0 0 0 rgba(61,214,140,.5)}
+        70%{box-shadow:0 0 0 7px rgba(61,214,140,0)}
+        100%{box-shadow:0 0 0 0 rgba(61,214,140,0)}}
+      .ka-line{overflow:hidden;text-overflow:ellipsis}
+      .ka-line.ka-swap{animation:ka-fade .5s ease}
+      @keyframes ka-fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+      .ka-tag{font-size:10px;letter-spacing:.6px;text-transform:uppercase;
+        color:var(--k-text-3);border:1px solid var(--k-border);
+        border-radius:999px;padding:2px 7px;flex:0 0 auto}
+      @media (max-width:760px){
+        #kroven-activity{top:100px;bottom:auto;
+          left:8px;right:8px;transform:none;max-width:none;justify-content:flex-start;
+          font-size:12px;padding:6px 12px;gap:8px;border-radius:12px}
+        .ka-tag{font-size:9px;padding:2px 6px;margin-left:auto}
+      }
+    </style>
+    <script>
+      (function(){
+        var API = "https://kroven-console-production.up.railway.app/api/activity";
+        var box = document.getElementById('kroven-activity');
+        var lineEl = box.querySelector('.ka-line');
+        var tagEl = document.getElementById('ka-tag');
+        var previews = [], idx = 0, rotator = null;
+
+        function hid(){
+          try {
+            var v = localStorage.getItem('kroven_household_id');
+            if (v) return v;
+          } catch(e){}
+          return null;
+        }
+
+        function setLine(text){
+          lineEl.textContent = text;
+          lineEl.classList.remove('ka-swap');
+          void lineEl.offsetWidth;
+          lineEl.classList.add('ka-swap');
+        }
+
+        function rotate(){
+          if (!previews.length) return;
+          setLine(previews[idx % previews.length].line);
+          idx++;
+        }
+
+        function load(){
+          var id = hid();
+          if (!id){ box.classList.remove('ka-in'); return; }
+          fetch(API + '?household_id=' + encodeURIComponent(id))
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+              if (rotator){ clearInterval(rotator); rotator = null; }
+              if (d.live){
+                box.classList.add('ka-live');
+                tagEl.textContent = d.calibrated ? 'live' : 'live · uncalibrated';
+                setLine(d.line || '');
+              } else {
+                box.classList.remove('ka-live');
+                // Not a measurement, and labelled as such so nobody reads the
+                // strip as a live occupancy reading.
+                tagEl.textContent = 'example · no sensor';
+                previews = (d.preview || []);
+                idx = 0;
+                if (!previews.length){ box.classList.remove('ka-in'); return; }
+                rotate();
+                rotator = setInterval(rotate, 4200);
+              }
+              box.classList.add('ka-in');
+            })
+            .catch(function(){ box.classList.remove('ka-in'); });
+        }
+
+        function place(){
+          if (window.innerWidth > 760){
+            box.style.top = '';
+            box.style.marginTop = '';
+            box.style.height = '';
+            // Sit in the gap directly above the suggestion pills. The badge stays
+            // translucent and blurred over the conversation, which is the look Vic
+            // wants, but it no longer lands on top of the pill text.
+            var chips = document.querySelector('.k-chips');
+            if (chips){
+              var gapFromBottom = window.innerHeight - chips.getBoundingClientRect().top;
+              box.style.bottom = Math.round(gapFromBottom + 10) + 'px';
+            }
+            var dyn = document.getElementById('ka-dyn');
+            if (dyn) dyn.textContent = '';
+            return;
+          }
+          var hdr = document.querySelector('.k-header');
+          var msgs = document.querySelector('.k-msgs');
+          if (!hdr) return;
+          var bottom = Math.round(hdr.getBoundingClientRect().bottom);
+          box.style.bottom = 'auto';
+          box.style.height = 'auto';
+          box.style.top = (bottom + 8) + 'px';
+          // React rewrites inline styles on every render, so the clearance for
+          // the first message has to go in a stylesheet rule, not on the node.
+          var pad = box.offsetHeight + 20;
+          var tag = document.getElementById('ka-dyn');
+          if (!tag){ tag = document.createElement('style'); tag.id = 'ka-dyn'; document.head.appendChild(tag); }
+          var rule = '@media (max-width:760px){.k-msgs{padding-top:' + pad + 'px!important}}';
+          if (tag.textContent !== rule) tag.textContent = rule;
+        }
+        place();
+        window.addEventListener('resize', place);
+        var placeTimer = setInterval(place, 1500);
+
+        load();
+        setInterval(load, 60000);
+      })();
+    </script>
+
+    <style>
+      /* Sub-pixel borders blur on fractional DPR; force a hairline. */
+      .k-header{border-bottom-width:1px!important;box-shadow:0 1px 0 rgba(0,0,0,.25)}
+      .k-side{flex:0 0 auto!important;overflow:hidden}
+      /* Hide the sidebar sooner: below this the chat column is what matters. */
+      @media (max-width:1000px){ .k-side{display:none!important} }
+    </style>
+
+    <style>
+      /* The pills must paint above the translucent badge, never under it. */
+      .k-chips{position:relative;z-index:70}
+      .k-chip{position:relative;z-index:71}
+      #kroven-activity{z-index:60}
+    </style>
+
+    <style>
+      /* ---------- typography & rhythm ---------- */
+      .k-app{ -webkit-font-smoothing:antialiased; }
+      .k-header{ backdrop-filter:blur(12px);
+        background:color-mix(in srgb, var(--k-bg) 82%, transparent);
+        position:sticky; top:0; z-index:40; }
+      .k-header > span:first-child{ letter-spacing:1.1px!important; font-size:17px!important; }
+      .k-header > span:last-child{ opacity:.72; }
+
+      /* ---------- sidebar ---------- */
+      .k-side{ background:linear-gradient(180deg,
+          color-mix(in srgb, var(--k-panel) 70%, transparent) 0%,
+          transparent 100%)!important;
+        border-right:1px solid color-mix(in srgb, var(--k-border) 70%, transparent)!important; }
+      .k-side > div:first-child{ opacity:.62; font-size:10.5px!important; }
+
+      /* ---------- message bubbles ---------- */
+      .k-msg > div{
+        border-radius:16px!important;
+        box-shadow:0 1px 2px rgba(0,0,0,.25), 0 8px 24px -18px rgba(0,0,0,.8);
+        border-color:color-mix(in srgb, var(--k-border) 80%, transparent)!important;
+        line-height:1.68!important;
+      }
+      /* the assistant reads as the page, the user reads as a card on it */
+      .k-msg:not(:has(> div[style*="justify-content"])) { }
+      .k-md p{ margin:0 0 9px; }
+      .k-md strong{ color:var(--k-text); font-weight:600; }
+
+      /* ---------- suggestion pills ---------- */
+      .k-chip{
+        border-radius:999px!important;
+        padding:8px 14px!important;
+        font-size:12.5px!important;
+        background:color-mix(in srgb, var(--k-surface) 70%, transparent)!important;
+        border:1px solid color-mix(in srgb, var(--k-border) 85%, transparent)!important;
+        transition:transform .14s ease, background .14s ease, border-color .14s ease;
+      }
+      .k-chip:hover:not(:disabled){ transform:translateY(-1px); }
+      .k-chip:active:not(:disabled){ transform:translateY(0); }
+
+      /* ---------- composer ---------- */
+      .k-inputrow{ gap:9px!important; }
+      .k-input{
+        border-radius:14px!important;
+        background:color-mix(in srgb, var(--k-surface) 85%, transparent)!important;
+        box-shadow:inset 0 1px 0 rgba(255,255,255,.03);
+      }
+      .k-run{
+        border-radius:14px!important;
+        font-weight:600!important;
+        letter-spacing:.2px;
+        box-shadow:0 6px 18px -8px var(--k-accent);
+      }
+      .k-run:not(:disabled):hover{ transform:translateY(-1px); }
+      .k-run{ transition:transform .14s ease, filter .14s ease; }
+
+      /* ---------- desktop: give the column room to breathe ---------- */
+      @media (min-width:1001px){
+        .k-msgs{ padding-top:34px!important; }
+        .k-msg > div{ max-width:70%!important; }
+      }
+
+      /* ---------- mobile ---------- */
+      @media (max-width:760px){
+        .k-header{ padding:10px 14px!important; }
+        .k-header > span:first-child{ font-size:16px!important; }
+        .k-header > span:last-child{ font-size:11.5px!important; opacity:.62; }
+        .k-msg > div{ max-width:90%!important; font-size:14.5px!important;
+          padding:12px 14px!important; }
+        .k-chip{ padding:7px 12px!important; font-size:12px!important; }
+        .k-inputrow{ padding-bottom:calc(14px + env(safe-area-inset-bottom,0px))!important; }
+        .k-input{ border-radius:12px!important; }
+        .k-run{ border-radius:12px!important; padding:13px 18px!important; }
+      }
+    </style>
+
+    <style>
+      /* =========================================================
+         Structural pass. The previous look was a demo shell: a
+         near-empty sidebar, a bubble around every assistant reply,
+         and a floating badge advertising that a sensor is missing.
+         ========================================================= */
+
+      /* 1. The sidebar held one card and an empty log. It was dead
+            column that pushed the conversation off-centre. */
+      .k-side{ display:none!important; }
+
+      /* 2. Assistant text sits on the page; only the person's own
+            messages get a container. This is what separates a real
+            chat product from a demo where everything is a bubble. */
+      .k-msg > div{ box-shadow:none!important; }
+      .k-msg:has(> div[style*="flex-start"]) > div,
+      .k-msg > div[style*="flex-start"]{ }
+      .k-md{ font-size:15.5px; line-height:1.72; }
+
+      /* 3. Roomier, centred reading column now the sidebar is gone. */
+      .k-msgs{ padding-left:max(24px, calc((100% - 760px)/2))!important;
+               padding-right:max(24px, calc((100% - 760px)/2))!important; }
+      .k-chips{ padding-left:max(24px, calc((100% - 760px)/2))!important;
+                padding-right:max(24px, calc((100% - 760px)/2))!important; }
+      .k-inputrow{ padding-left:max(24px, calc((100% - 760px)/2))!important;
+                   padding-right:max(24px, calc((100% - 760px)/2))!important; }
+
+      /* 4. A badge whose job is to announce missing hardware is the
+            least professional thing on the page. It stays hidden until
+            a sensor actually reports. */
+      #kroven-activity:not(.ka-live){ display:none!important; }
+
+      @media (max-width:760px){
+        .k-msgs, .k-chips, .k-inputrow{
+          padding-left:16px!important; padding-right:16px!important; }
+        .k-md{ font-size:15px; }
+      }
+    </style>
+
+    <style>
+      /* ---- Live signals: a compact reference panel, not a debug dump ---- */
+      #kroven-signals{ width:300px!important; padding:12px 14px!important;
+        max-height:min(56vh,460px)!important; border-radius:12px!important; }
+      .ks-title{ font-size:12.5px!important; font-weight:600!important; }
+      .ks-sub{ font-size:10.5px!important; }
+      .ks-row{ margin-bottom:10px!important; }
+      .ks-label{ font-size:11.5px!important; gap:8px!important; }
+      .ks-val{ font-size:11.5px!important; }
+      .ks-track{ height:4px!important; margin-top:5px!important; }
+      /* the loud all-caps provenance line becomes a quiet footnote */
+      .ks-kind{ font-size:8.5px!important; letter-spacing:.3px!important;
+        text-transform:none!important; opacity:.5; margin-top:4px!important; }
+      /* four stacked blue links read as unstyled html - make it one small tag */
+      .ks-why{ font-size:9.5px!important; text-decoration:none!important;
+        color:var(--k-text-3)!important; opacity:.65; margin-top:3px!important;
+        border:1px solid var(--k-border); border-radius:5px; padding:1px 5px!important; }
+      .ks-why:hover{ opacity:1; color:var(--k-text-2)!important; }
+      .ks-basis{ font-size:10.5px!important; }
+      .ks-foot{ font-size:9.5px!important; opacity:.55; }
+
+      /* ---- the floating buttons were shouting ---- */
+      #kroven-data-toggle{ font-size:12px!important; padding:8px 13px!important;
+        background:color-mix(in srgb, var(--k-surface) 92%, transparent)!important;
+        color:var(--k-text-2)!important;
+        border:1px solid var(--k-border)!important;
+        box-shadow:0 4px 14px rgba(0,0,0,.35)!important; font-weight:500!important; }
+      #kroven-data-toggle .kd-icon{ opacity:.7; }
+      #kroven-signals-toggle{ font-size:12px!important; padding:8px 13px!important;
+        background:color-mix(in srgb, var(--k-surface) 92%, transparent)!important;
+        color:var(--k-text-2)!important;
+        border:1px solid var(--k-border)!important;
+        box-shadow:0 4px 14px rgba(0,0,0,.35)!important; font-weight:500!important; }
+
+      /* ---- kill the dead void: greeting sits centred until a real
+              conversation starts, instead of stranded at the top ---- */
+      .k-msgs{ display:flex; flex-direction:column; justify-content:flex-end; }
+      .k-msgs > div:first-child{ margin-top:auto; }
+      .k-msg > div{ font-size:15.5px; }
+
+      /* ---- pills must never sit under the panel ---- */
+      .k-chips{ flex-wrap:wrap!important; row-gap:8px; }
+    </style>
+
+    <button id="kv-console-open" aria-label="Open console">CONSOLE</button>
+    <div id="kv-console" class="kv-hidden" role="dialog" aria-label="Kroven console">
+      <div class="kv-scan" aria-hidden="true"></div>
+      <div class="kv-head">
+        <div class="kv-brand">
+          <span class="kv-mark">KROVEN</span>
+          <span class="kv-sub">MOL</span>
+        </div>
+        <div class="kv-loc" id="kv-loc">locating…</div>
+        <button id="kv-console-close" aria-label="Back to chat"><span aria-hidden="true">←</span> CHAT</button>
+      </div>
+      <div class="kv-tabs" id="kv-tabs">
+        <button data-tab="overview" class="kv-on">OVERVIEW</button>
+        <button data-tab="weather">FORECAST BY REGION</button>
+      </div>
+      <div class="kv-grid" id="kv-grid"></div>
+      <div id="kv-wx-panel" style="display:none"></div>
+      <div class="kv-foot" id="kv-foot"></div>
+    </div>
+
+    <style>
+      #kv-console-open{position:fixed;left:14px;bottom:14px;z-index:9996;
+        font-family:var(--k-mono);font-size:10.5px;letter-spacing:2px;
+        color:#7FD4FF;background:rgba(10,22,38,.82);
+        border:1px solid rgba(90,190,255,.35);border-radius:6px;
+        padding:9px 14px;cursor:pointer;backdrop-filter:blur(8px);
+        box-shadow:0 0 18px -6px rgba(90,190,255,.5), inset 0 0 12px -8px #7FD4FF;
+        transition:box-shadow .2s ease, color .2s ease}
+      #kv-console-open:hover{color:#BFE9FF;
+        box-shadow:0 0 26px -4px rgba(90,190,255,.75), inset 0 0 16px -8px #7FD4FF}
+
+      #kv-console{position:fixed;inset:0;z-index:9995;overflow:auto;
+        background:
+          radial-gradient(1200px 600px at 20% -10%, rgba(28,86,140,.28), transparent 60%),
+          radial-gradient(900px 500px at 100% 100%, rgba(20,60,110,.22), transparent 60%),
+          linear-gradient(180deg,#050B14 0%,#060D18 100%);
+        color:#CFE6F7;font-family:var(--k-font);padding:18px 20px 26px}
+      #kv-console.kv-hidden{display:none}
+      /* faint horizontal sweep, the one purely decorative thing here */
+      .kv-scan{position:absolute;inset:0;pointer-events:none;opacity:.35;
+        background:repeating-linear-gradient(180deg,
+          rgba(120,200,255,.045) 0px, rgba(120,200,255,.045) 1px, transparent 1px, transparent 3px)}
+
+      .kv-head{display:flex;align-items:center;gap:16px;margin-bottom:16px;position:relative}
+      .kv-brand{display:flex;flex-direction:column;line-height:1}
+      .kv-mark{font-size:17px;font-weight:700;letter-spacing:3px;color:#EAF6FF}
+      .kv-sub{font-size:8px;letter-spacing:3.5px;margin-top:4px;color:#5FA8D6}
+      .kv-loc{font-family:var(--k-mono);font-size:10px;letter-spacing:1.6px;
+        color:#5FA8D6;text-transform:uppercase;
+        border-left:1px solid rgba(95,168,214,.3);padding-left:14px}
+      #kv-console-close{margin-left:auto;background:none;border:none;color:#5FA8D6;
+        font-size:15px;cursor:pointer;padding:4px 6px}
+      #kv-console-close:hover{color:#CFE6F7}
+
+      .kv-grid{display:grid;gap:12px;position:relative;
+        grid-template-columns:repeat(12,1fr)}
+      .kv-tile{grid-column:span 3;background:rgba(10,22,38,.62);
+        border:1px solid rgba(90,160,220,.16);border-radius:9px;padding:13px 14px;
+        position:relative;overflow:hidden;min-height:104px}
+      .kv-tile::before{content:"";position:absolute;top:0;left:0;right:0;height:1px;
+        background:linear-gradient(90deg,transparent,rgba(120,210,255,.5),transparent)}
+      .kv-tile.kv-wide{grid-column:span 6}
+      .kv-tile.kv-full{grid-column:span 12}
+      .kv-tile.kv-dim{opacity:.55}
+
+      .kv-label{font-family:var(--k-mono);font-size:9px;letter-spacing:1.7px;
+        text-transform:uppercase;color:#5FA8D6;margin-bottom:9px}
+      .kv-value{font-size:26px;font-weight:600;letter-spacing:-.5px;color:#EAF6FF;
+        font-variant-numeric:tabular-nums;line-height:1}
+      .kv-unit{font-size:11px;color:#6FB6E0;margin-left:5px;font-weight:400}
+      .kv-meta{font-family:var(--k-mono);font-size:9.5px;color:#4E86AE;margin-top:7px;
+        line-height:1.5}
+      .kv-none{font-family:var(--k-mono);font-size:9.5px;color:#4E86AE;
+        letter-spacing:.6px;margin-top:6px}
+      .kv-bar{height:3px;border-radius:3px;background:rgba(95,168,214,.16);margin-top:9px;overflow:hidden}
+      .kv-bar > i{display:block;height:100%;border-radius:3px;
+        background:linear-gradient(90deg,#3FA9F5,#7FE7FF);
+        box-shadow:0 0 10px -2px #7FE7FF;transition:width .6s ease}
+      .kv-warn > i{background:linear-gradient(90deg,#E0A44E,#FFD08A)}
+
+      .kv-chart{width:100%;height:120px;display:block}
+      .kv-chart path.kv-line{fill:none;stroke:#7FE7FF;stroke-width:1.4;
+        filter:drop-shadow(0 0 4px rgba(127,231,255,.55))}
+      .kv-chart path.kv-fill{fill:url(#kvGrad);stroke:none;opacity:.5}
+      .kv-chart line{stroke:rgba(95,168,214,.14);stroke-width:1}
+
+      .kv-foot{font-family:var(--k-mono);font-size:9px;color:#3E6E92;
+        margin-top:16px;letter-spacing:.8px;position:relative}
+
+      @media (max-width:900px){
+        .kv-tile{grid-column:span 6}
+        .kv-tile.kv-wide,.kv-tile.kv-full{grid-column:span 12}
+        #kv-console{padding:14px 12px 22px}
+        .kv-value{font-size:22px}
+      }
+      @media (max-width:560px){
+        .kv-tile{grid-column:span 12}
+      }
+    </style>
+
+    <script>
+      (function(){
+        var BASE = "https://kroven-console-production.up.railway.app";
+        var el = document.getElementById('kv-console');
+        var grid = document.getElementById('kv-grid');
+        var foot = document.getElementById('kv-foot');
+        var locEl = document.getElementById('kv-loc');
+        var timer = null;
+
+        function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
+          return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+        function hid(){ try { return localStorage.getItem('kroven_household_id'); } catch(e){ return null; } }
+        function coords(){
+          try { var c = localStorage.getItem('kroven_coords');
+                if (c && c.indexOf(',')>-1){ var p=c.split(','); return {lat:+p[0], lon:+p[1]}; } }
+          catch(e){}
+          return null;
+        }
+
+        function tile(label, body, cls){
+          return '<div class="kv-tile '+(cls||'')+'"><div class="kv-label">'+esc(label)+'</div>'+body+'</div>';
+        }
+        function noFeed(msg){ return '<div class="kv-none">— NO FEED —</div><div class="kv-meta">'+esc(msg)+'</div>'; }
+        function bar(pct, warn){
+          var w = Math.max(0, Math.min(100, pct));
+          return '<div class="kv-bar'+(warn?' kv-warn':'')+'"><i style="width:'+w+'%"></i></div>';
+        }
+
+        function sparkline(series){
+          if (!series || series.length < 2) return '';
+          var vals = series.map(function(p){ return p.kwh; });
+          var max = Math.max.apply(null, vals), min = Math.min.apply(null, vals);
+          var range = (max - min) || 1;
+          var W = 600, H = 120, pad = 6;
+          var pts = vals.map(function(v,i){
+            var x = pad + (i/(vals.length-1))*(W-pad*2);
+            var y = H - pad - ((v-min)/range)*(H-pad*2);
+            return [x,y];
+          });
+          var d = pts.map(function(p,i){ return (i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1); }).join(' ');
+          var fill = d + ' L'+(W-pad)+' '+(H-pad)+' L'+pad+' '+(H-pad)+' Z';
+          var gridlines = '';
+          for (var g=1; g<4; g++){
+            var gy = pad + (g/4)*(H-pad*2);
+            gridlines += '<line x1="'+pad+'" y1="'+gy.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+gy.toFixed(1)+'"/>';
+          }
+          return '<svg class="kv-chart" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">'
+            + '<defs><linearGradient id="kvGrad" x1="0" y1="0" x2="0" y2="1">'
+            + '<stop offset="0%" stop-color="#3FA9F5" stop-opacity=".55"/>'
+            + '<stop offset="100%" stop-color="#3FA9F5" stop-opacity="0"/></linearGradient></defs>'
+            + gridlines
+            + '<path class="kv-fill" d="'+fill+'"/><path class="kv-line" d="'+d+'"/></svg>';
+        }
+
+        function render(d){
+          var html = '';
+          var u = d.usage || {};
+          var c = coords();
+          html += tile('Service area \u00b7 Bay Area beta',
+            '<div class="kv-3d-wrap"><canvas class="kv-3d" id="kv3d"></canvas>'
+            + '<div class="kv-zoom"><button data-z="in" aria-label="Zoom in">+</button>'+ '<button data-z="out" aria-label="Zoom out">−</button>'+ '<button data-z="reset" aria-label="Reset view">↺</button></div>'+ '<div class="kv-3d-hint">DRAG · PINCH · OR USE +/−</div></div>'
+            + '<div class="kv-meta">Nine-county beta boundary, real county geometry. Equal heights: there is no per-county data to encode.</div>', 'kv-full');
+
+          if (u.state === 'live'){
+            html += tile('Consumption · logged', sparkline(u.series)
+              + '<div class="kv-meta">'+esc(u.first_at)+' → '+esc(u.last_at)
+              + ' · '+u.readings+' readings</div>', 'kv-full');
+
+            html += tile('Last 24 hours',
+              '<div class="kv-value">'+(u.recent_24h_kwh!=null?u.recent_24h_kwh:'—')
+              + '<span class="kv-unit">kWh</span></div>'
+              + '<div class="kv-meta">'+u.non_zero+' active readings</div>');
+
+            html += tile('Peak reading',
+              '<div class="kv-value">'+u.highest_kwh+'<span class="kv-unit">kWh</span></div>'
+              + '<div class="kv-meta">'+esc(u.highest_at)+'</div>');
+
+            html += tile('Floor reading',
+              '<div class="kv-value">'+u.lowest_kwh+'<span class="kv-unit">kWh</span></div>'
+              + '<div class="kv-meta">'+esc(u.lowest_at)+'</div>');
+
+            html += tile('Busiest hour',
+              '<div class="kv-value">'+esc(u.busiest_hour||'—')+'</div>'
+              + '<div class="kv-meta">across '+u.hours_covered+' h logged</div>');
+          } else {
+            html += tile('Consumption · logged', noFeed(u.note || 'No readings yet.'), 'kv-full kv-dim');
+          }
+
+          // --- learned threshold + today vs this household's own typical ---
+          var vt = d.vs_typical || {};
+          if (vt.state === 'live'){
+            var pct = Math.round((vt.ratio || 0) * 100);
+            html += tile('Today vs typical',
+              '<div class="kv-value">' + pct + '<span class="kv-unit">% of typical</span></div>'
+              + bar(Math.min(100, pct), pct > 130)
+              + '<div class="kv-meta">' + vt.today_kwh + ' kWh today · typical '
+              + vt.typical_kwh + ' kWh · ' + vt.days_compared + ' days compared</div>');
+          } else if (vt.state === 'building'){
+            html += tile('Today vs typical',
+              '<div class="kv-value">' + (vt.today_kwh != null ? vt.today_kwh : '—')
+              + '<span class="kv-unit">kWh today</span></div>'
+              + '<div class="kv-meta">' + esc(vt.note || '') + '</div>');
+          } else {
+            html += tile('Today vs typical', noFeed(vt.note || 'No readings yet.'), 'kv-dim');
+          }
+
+          var bl = d.baselines || {};
+          (bl.devices || []).forEach(function(dev){
+            var body;
+            if (dev.separated){
+              body = '<div class="kv-value" style="font-size:19px">' + esc(dev.latest_state.toUpperCase())
+                + '</div>'
+                + bar(Math.round(dev.confidence * 100))
+                + '<div class="kv-meta">threshold ' + dev.threshold + ' · idle ' + dev.idle_value
+                + ' · active ' + dev.active_value + '<br>' + dev.sample_count
+                + ' readings · confidence ' + Math.round(dev.confidence * 100) + '%</div>';
+            } else {
+              body = '<div class="kv-value" style="font-size:15px">LEARNING</div>'
+                + bar(Math.round(dev.confidence * 100))
+                + '<div class="kv-meta">' + esc(dev.note) + '</div>';
+            }
+            html += tile(dev.source + ' · ' + dev.signal_type, body);
+          });
+
+          var co = bl.correlation;
+          if (co){
+            html += tile('Presence × power',
+              (co.match_rate != null
+                ? '<div class="kv-value">' + Math.round(co.match_rate * 100)
+                  + '<span class="kv-unit">% aligned</span></div>' + bar(co.match_rate * 100)
+                : '<div class="kv-none">— AWAITING BOTH SIGNALS —</div>')
+              + '<div class="kv-meta">' + esc(co.note) + '</div>',
+              co.match_rate == null ? 'kv-dim' : '');
+          }
+
+          var g = d.grid || {};
+          if (g.status === 'ok'){
+            html += tile('Grid load', '<div class="kv-value">'+esc(g.display)+'</div>'
+              + bar(g.value, g.value >= 85)
+              + '<div class="kv-meta">'+esc(g.source)+'</div>', 'kv-wide');
+          } else {
+            html += tile('Grid load', noFeed(g.note || g.detail || 'Grid feed unavailable.'), 'kv-wide kv-dim');
+          }
+
+          var w = d.weather || {};
+          ['precip','wind','alerts'].forEach(function(k){
+            var s = w[k];
+            if (!s){ return; }
+            if (s.status === 'ok'){
+              html += tile(s.label, '<div class="kv-value" style="font-size:19px">'+esc(s.display)+'</div>'
+                + (s.value!=null ? bar(s.value, k==='alerts' && s.value>0) : '')
+                + '<div class="kv-meta">'+esc(s.source)+'</div>');
+            } else {
+              html += tile(s.label, noFeed(s.detail||'unavailable'), 'kv-dim');
+            }
+          });
+
+          var a = d.activity || {};
+          html += tile('Occupancy', a.state === 'live'
+            ? '<div class="kv-value" style="font-size:17px">'+esc(a.line)+'</div>'
+            : noFeed(a.note || 'No sensor connected.'),
+            a.state === 'live' ? '' : 'kv-dim');
+
+          (d.unequipped || []).forEach(function(x){
+            html += tile(x.name, noFeed(x.reason), 'kv-dim');
+          });
+
+          grid.innerHTML = html;
+          // on a phone, everything past the headline tiles collapses
+          var all = [].slice.call(grid.querySelectorAll('.kv-tile'));
+          all.forEach(function(t, i){ if (i >= 4) t.classList.add('kv-secondary'); });
+          if (!document.getElementById('kv-more')){
+            var more = document.createElement('button');
+            more.id = 'kv-more';
+            more.textContent = 'SHOW ALL ' + all.length + ' PANELS';
+            more.addEventListener('click', function(){
+              var on = el.classList.toggle('kv-all');
+              more.textContent = on ? 'SHOW LESS' : ('SHOW ALL ' + all.length + ' PANELS');
+            });
+            grid.parentNode.insertBefore(more, foot);
+          } else {
+            document.getElementById('kv-more').textContent =
+              el.classList.contains('kv-all') ? 'SHOW LESS' : ('SHOW ALL ' + all.length + ' PANELS');
+          }
+          var cv = document.getElementById('kv3d');
+          if (cv && !cv.dataset.on){
+            cv.dataset.on = '1';
+            var wrap = cv.parentElement;
+            var startCanvas = function(why){
+              if (wrap.dataset.fallback) return;
+              wrap.dataset.fallback = '1';
+              if (!document.getElementById('kv3d')){
+                wrap.innerHTML = '<canvas class="kv-3d" id="kv3d"></canvas>'
+                  + '<div class="kv-3d-hint">DRAG TO ROTATE · SCROLL TO ZOOM</div>';
+              }
+              if (window.kvRender3D){
+                window.kvRender3D(document.getElementById('kv3d'), c && c.lat, c && c.lon);
+              }
+            };
+            if (window.kvTryMapbox){ window.kvTryMapbox(wrap, c && c.lat, c && c.lon, startCanvas); }
+            else { startCanvas('no loader'); }
+          }
+          foot.textContent = 'UPDATED ' + String(d.generated_at||'').replace('T',' ')
+            + ' · LIVE SOURCES ONLY · UNPOPULATED TILES HAVE NO FEED';
+        }
+
+        function load(){
+          var id = hid(), c = coords();
+          if (!id){ grid.innerHTML = '<div class="kv-tile kv-full">'
+            + '<div class="kv-label">Session</div>'
+            + '<div class="kv-none">— NO SESSION —</div>'
+            + '<div class="kv-meta">Send a message first so Kroven has a household to read.</div></div>';
+            return; }
+          var url = BASE + '/api/dashboard?household_id=' + encodeURIComponent(id)
+                  + (c ? '&lat='+c.lat+'&lon='+c.lon : '');
+          locEl.textContent = c ? 'SAN FRANCISCO · LIVE' : 'LOCATION NEEDED';
+          fetch(url).then(function(r){ return r.json(); }).then(render).catch(function(){
+            grid.innerHTML = '<div class="kv-tile kv-full"><div class="kv-label">Link</div>'
+              + '<div class="kv-none">— NO LINK —</div>'
+              + '<div class="kv-meta">Console could not reach the service.</div></div>';
+          });
+        }
+
+        function open(v, fromHistory){
+          el.classList.toggle('kv-hidden', !v);
+          document.getElementById('kv-console-open').style.display = v ? 'none' : 'block';
+          document.body.style.overflow = v ? 'hidden' : '';
+          if (v){
+            load(); timer = setInterval(load, 60000);
+            // give Back something to pop, so the phone's back gesture and the
+            // browser's back button return to the chat instead of leaving.
+            if (!fromHistory){
+              try { history.pushState({kv:'console'}, '', '#console'); } catch(e){}
+            }
+          } else {
+            if (timer){ clearInterval(timer); timer = null; }
+            if (!fromHistory && location.hash === '#console'){
+              try { history.back(); } catch(e){}
+            }
+          }
+        }
+        window.addEventListener('popstate', function(){
+          if (!el.classList.contains('kv-hidden')) open(false, true);
+        });
+        // deep link: /#console opens straight into it
+        if (location.hash === '#console'){ setTimeout(function(){ open(true, true); }, 400); }
+        var tabs = document.getElementById('kv-tabs');
+        var wxPanel = document.getElementById('kv-wx-panel');
+        tabs.addEventListener('click', function(e){
+          var b = e.target.closest('button'); if (!b) return;
+          var t = b.dataset.tab;
+          [].forEach.call(tabs.querySelectorAll('button'), function(x){
+            x.classList.toggle('kv-on', x === b);
+          });
+          var overview = t === 'overview';
+          grid.style.display = overview ? '' : 'none';
+          wxPanel.style.display = overview ? 'none' : '';
+          var more = document.getElementById('kv-more');
+          if (more) more.style.display = overview ? '' : 'none';
+          if (!overview && window.kvRenderWeather){
+            // the county comes from the same reverse-geocode the app already did
+            var county = '', city = '';
+            try {
+              var reg = localStorage.getItem('kroven_region') || '';
+              if (reg.indexOf('|') > -1){
+                var parts = reg.split('|');
+                city = parts[0] || '';
+                county = (parts[1] || '').replace(/ county$/i, '');
+              }
+            } catch(err){}
+            window.kvRenderWeather(wxPanel, county, city);
+          }
+        });
+
+        document.getElementById('kv-console-open').addEventListener('click', function(){ open(true); });
+        document.getElementById('kv-console-close').addEventListener('click', function(){ open(false); });
+        window.kvCloseConsole = function(){ open(false); };
+        document.addEventListener('keydown', function(e){ if (e.key === 'Escape') open(false); });
+      })();
+    </script>
+
+    <style>
+      .kv-map{width:100%;height:330px;display:block}
+      .kv-map .kv-ground{fill:none;stroke:rgba(95,168,214,.13);stroke-width:1}
+      .kv-map .kv-blk-top{fill:rgba(63,169,245,.30);stroke:#7FE7FF;stroke-width:.7}
+      .kv-map .kv-blk-side{fill:rgba(20,60,110,.72);stroke:rgba(127,231,255,.30);stroke-width:.6}
+      .kv-map .kv-hub .kv-blk-top{fill:rgba(127,231,255,.60)}
+      .kv-map .kv-you .kv-blk-top{fill:rgba(255,196,120,.85);stroke:#FFD9A0}
+      .kv-map .kv-you .kv-blk-side{fill:rgba(120,70,20,.75);stroke:rgba(255,196,120,.45)}
+      .kv-map text{font-family:var(--k-mono);font-size:7.2px;fill:#6FB6E0;letter-spacing:.5px}
+      .kv-map text.kv-hublabel{fill:#CFE6F7;font-size:8.4px}
+      .kv-map text.kv-youlabel{fill:#FFD9A0;font-size:8.4px}
+      .kv-map .kv-edge{stroke:rgba(127,231,255,.18);stroke-width:.7}
+      .kv-map .kv-ring{fill:none;stroke:rgba(127,231,255,.22);stroke-dasharray:3 5}
+      @media (max-width:900px){ .kv-map{height:250px} }
+    </style>
+    <script>
+      (function(){
+        // Real coordinates. The nine counties are the beta boundary; the map
+        // stops here because coverage stops here.
+        var CITIES = [
+          {n:"SAN FRANCISCO", lat:37.7749, lon:-122.4194, hub:true},
+          {n:"OAKLAND",       lat:37.8044, lon:-122.2712, hub:true},
+          {n:"SAN JOSE",      lat:37.3382, lon:-121.8863, hub:true},
+          {n:"BERKELEY",      lat:37.8715, lon:-122.2730},
+          {n:"DALY CITY",     lat:37.6879, lon:-122.4702},
+          {n:"SAN MATEO",     lat:37.5630, lon:-122.3255},
+          {n:"PALO ALTO",     lat:37.4419, lon:-122.1430},
+          {n:"FREMONT",       lat:37.5485, lon:-121.9886},
+          {n:"HAYWARD",       lat:37.6688, lon:-122.0808},
+          {n:"WALNUT CREEK",  lat:37.9101, lon:-122.0652},
+          {n:"CONCORD",       lat:37.9780, lon:-122.0311},
+          {n:"RICHMOND",      lat:37.9358, lon:-122.3477},
+          {n:"SAN RAFAEL",    lat:37.9735, lon:-122.5311},
+          {n:"NOVATO",        lat:38.1074, lon:-122.5697},
+          {n:"PETALUMA",      lat:38.2324, lon:-122.6367},
+          {n:"SANTA ROSA",    lat:38.4404, lon:-122.7141},
+          {n:"NAPA",          lat:38.2975, lon:-122.2869},
+          {n:"VALLEJO",       lat:38.1041, lon:-122.2566},
+          {n:"FAIRFIELD",     lat:38.2494, lon:-122.0400},
+          {n:"LIVERMORE",     lat:37.6819, lon:-121.7680},
+          {n:"GILROY",        lat:37.0058, lon:-121.5683}
+        ];
+
+        window.kvBuildMap = function(userLat, userLon){
+          var W = 640, H = 330;
+          var lats = CITIES.map(function(c){ return c.lat; });
+          var lons = CITIES.map(function(c){ return c.lon; });
+          var minLat = Math.min.apply(null,lats), maxLat = Math.max.apply(null,lats);
+          var minLon = Math.min.apply(null,lons), maxLon = Math.max.apply(null,lons);
+
+          // normalise to a unit square, then drop into an isometric frame
+          function iso(lat, lon){
+            var nx = (lon - minLon) / (maxLon - minLon || 1);
+            var ny = (lat - minLat) / (maxLat - minLat || 1);
+            var gx = nx - 0.5, gy = (1 - ny) - 0.5;
+            var x = (gx - gy) * 230 + W/2;
+            var y = (gx + gy) * 118 + H/2 + 26;
+            return [x, y];
+          }
+
+          function block(cx, cy, w, h, depth){
+            var half = w/2;
+            var top = 'M'+cx+' '+(cy-depth-h)+
+                      ' L'+(cx+half)+' '+(cy-depth-h+half*0.5)+
+                      ' L'+cx+' '+(cy-depth-h+half)+
+                      ' L'+(cx-half)+' '+(cy-depth-h+half*0.5)+' Z';
+            var left = 'M'+(cx-half)+' '+(cy-depth-h+half*0.5)+
+                       ' L'+cx+' '+(cy-depth-h+half)+
+                       ' L'+cx+' '+(cy+half)+
+                       ' L'+(cx-half)+' '+(cy+half*0.5)+' Z';
+            var right= 'M'+(cx+half)+' '+(cy-depth-h+half*0.5)+
+                       ' L'+cx+' '+(cy-depth-h+half)+
+                       ' L'+cx+' '+(cy+half)+
+                       ' L'+(cx+half)+' '+(cy+half*0.5)+' Z';
+            return '<path class="kv-blk-side" d="'+left+'"/>'
+                 + '<path class="kv-blk-side" d="'+right+'"/>'
+                 + '<path class="kv-blk-top" d="'+top+'"/>';
+          }
+
+          var svg = '<svg class="kv-map" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet">';
+
+          // ground lattice
+          for (var i=0; i<=8; i++){
+            var a = iso(minLat + (maxLat-minLat)*(i/8), minLon);
+            var b = iso(minLat + (maxLat-minLat)*(i/8), maxLon);
+            var c = iso(minLat, minLon + (maxLon-minLon)*(i/8));
+            var d = iso(maxLat, minLon + (maxLon-minLon)*(i/8));
+            svg += '<line class="kv-ground" x1="'+a[0].toFixed(1)+'" y1="'+a[1].toFixed(1)+'" x2="'+b[0].toFixed(1)+'" y2="'+b[1].toFixed(1)+'"/>';
+            svg += '<line class="kv-ground" x1="'+c[0].toFixed(1)+'" y1="'+c[1].toFixed(1)+'" x2="'+d[0].toFixed(1)+'" y2="'+d[1].toFixed(1)+'"/>';
+          }
+
+          // link the three hubs so the region reads as one grid
+          var hubs = CITIES.filter(function(c){ return c.hub; });
+          for (var hI=0; hI<hubs.length; hI++){
+            for (var hJ=hI+1; hJ<hubs.length; hJ++){
+              var p = iso(hubs[hI].lat, hubs[hI].lon), q = iso(hubs[hJ].lat, hubs[hJ].lon);
+              svg += '<line class="kv-edge" x1="'+p[0].toFixed(1)+'" y1="'+p[1].toFixed(1)+'" x2="'+q[0].toFixed(1)+'" y2="'+q[1].toFixed(1)+'"/>';
+            }
+          }
+
+          // painter's order so nearer blocks overlap correctly
+          var items = CITIES.map(function(c){
+            var p = iso(c.lat, c.lon);
+            return {c:c, x:p[0], y:p[1]};
+          }).sort(function(a,b){ return a.y - b.y; });
+
+          items.forEach(function(it){
+            var w = it.c.hub ? 17 : 12;
+            var h = it.c.hub ? 15 : 8;      // hubs taller for legibility, not data
+            svg += '<g class="'+(it.c.hub?'kv-hub':'')+'">'
+                 + block(it.x.toFixed(1), it.y.toFixed(1), w, h, 0)
+                 + '<text class="'+(it.c.hub?'kv-hublabel':'')+'" x="'+(it.x+ (it.c.hub?13:10)).toFixed(1)
+                 + '" y="'+(it.y+4).toFixed(1)+'">'+it.c.n+'</text></g>';
+          });
+
+          // the person, if we know where they are
+          if (typeof userLat === 'number' && typeof userLon === 'number'){
+            var up = iso(userLat, userLon);
+            svg += '<g class="kv-you">'
+                 + '<circle class="kv-ring" cx="'+up[0].toFixed(1)+'" cy="'+up[1].toFixed(1)+'" r="26"/>'
+                 + block(up[0].toFixed(1), up[1].toFixed(1), 15, 22, 0)
+                 + '<text class="kv-youlabel" x="'+(up[0]+13).toFixed(1)+'" y="'+(up[1]-16).toFixed(1)+'">YOU</text>'
+                 + '</g>';
+          }
+
+          svg += '</svg>';
+          return svg;
+        };
+      })();
+    </script>
+
+    <style>
+      .kv-3d-wrap{position:relative;width:100%;height:380px;border-radius:8px;overflow:hidden;
+        background:radial-gradient(120% 90% at 50% 10%, rgba(24,74,122,.35), rgba(5,11,20,0) 65%)}
+      .kv-3d{width:100%;height:100%;display:block;cursor:grab}
+      .kv-3d:active{cursor:grabbing}
+      .kv-3d-hint{position:absolute;right:10px;bottom:8px;font-family:var(--k-mono);
+        font-size:8.5px;letter-spacing:1.2px;color:#3E6E92;pointer-events:none}
+      @media (max-width:900px){ .kv-3d-wrap{height:290px} }
+    </style>
+    <script>
+      (function(){
+        var COUNTIES = {"Alameda":[[[-122.3129,37.8973],[-122.2639,37.9037],[-122.2489,37.8869],[-122.2239,37.8783],[-122.2163,37.8688],[-122.2204,37.8644],[-122.1842,37.8339],[-122.186,37.8207],[-122.1669,37.8134],[-122.1574,37.818],[-122.1406,37.8046],[-122.0455,37.7981],[-122.0141,37.7802],[-121.9978,37.7632],[-122.0108,37.7551],[-122.0118,37.7474],[-121.9608,37.7186],[-121.5592,37.8189],[-121.5567,37.5427],[-121.5458,37.5325],[-121.5222,37.5248],[-121.5042,37.5259],[-121.4961,37.5049],[-121.4693,37.4897],[-121.4712,37.4828],[-121.8653,37.4846],[-121.8826,37.4706],[-121.9255,37.4544],[-121.935,37.4624],[-121.98,37.4609],[-121.9965,37.4703],[-122.0495,37.4683],[-122.0533,37.4863],[-122.0473,37.4938],[-122.0921,37.5092],[-122.1061,37.4998],[-122.1105,37.5058],[-122.1124,37.531],[-122.1462,37.5836],[-122.1533,37.6421],[-122.1682,37.6764],[-122.1911,37.7039],[-122.212,37.7091],[-122.2167,37.6997],[-122.2493,37.7226],[-122.2475,37.728],[-122.2611,37.7403],[-122.2518,37.7481],[-122.2269,37.748],[-122.2114,37.7379],[-122.2107,37.7512],[-122.245,37.7845],[-122.3253,37.8002],[-122.3136,37.828],[-122.2965,37.83],[-122.3028,37.8613],[-122.317,37.8892],[-122.3129,37.8973]]],"Contra Costa":[[[-121.582,37.9858],[-121.5736,37.9803],[-121.5737,37.9664],[-121.5651,37.9598],[-121.5564,37.9236],[-121.5657,37.9185],[-121.5632,37.9122],[-121.5718,37.9025],[-121.5659,37.8977],[-121.575,37.8894],[-121.578,37.8578],[-121.5517,37.8604],[-121.5366,37.8447],[-121.5424,37.8334],[-121.5495,37.8336],[-121.5535,37.8184],[-121.9608,37.7186],[-122.0118,37.7474],[-122.0108,37.7551],[-121.9978,37.7632],[-122.0141,37.7802],[-122.0455,37.7981],[-122.1406,37.8046],[-122.1574,37.818],[-122.1669,37.8134],[-122.186,37.8207],[-122.1842,37.8339],[-122.2204,37.8644],[-122.2163,37.8688],[-122.2239,37.8783],[-122.2489,37.8869],[-122.2639,37.9037],[-122.3129,37.8973],[-122.3253,37.898],[-122.3242,37.9071],[-122.3544,37.914],[-122.3657,37.9064],[-122.3858,37.9083],[-122.3865,37.9199],[-122.4095,37.9325],[-122.4289,37.963],[-122.4129,37.963],[-122.401,37.9531],[-122.3595,37.9909],[-122.3669,38.0121],[-122.3321,38.0012],[-122.3174,38.0108],[-122.2996,38.0102],[-122.2653,38.0396],[-122.2623,38.0509],[-122.2436,38.0582],[-122.1906,38.0524],[-122.1692,38.0296],[-122.146,38.0218],[-122.0691,38.0523],[-122.0234,38.0581],[-121.9744,38.0469],[-121.8927,38.0415],[-121.8091,38.0169],[-121.7408,38.0187],[-121.7099,38.0063],[-121.7073,38.0114],[-121.6941,38.0083],[-121.6858,38.019],[-121.6986,38.0276],[-121.712,38.0226],[-121.7243,38.0267],[-121.6742,38.0576],[-121.6281,38.0408],[-121.6078,38.0194],[-121.5847,38.0299],[-121.582,37.9858]]],"San Francisco":[[[-122.3932,37.7083],[-122.5028,37.7081],[-122.5146,37.7812],[-122.4877,37.7894],[-122.4777,37.8106],[-122.4636,37.8048],[-122.4028,37.806],[-122.3872,37.7888],[-122.387,37.7636],[-122.3676,37.7401],[-122.3723,37.7341],[-122.357,37.7287],[-122.3653,37.7159],[-122.3932,37.7083]]],"Solano":[[[-121.8859,38.5388],[-121.7836,38.5233],[-121.7707,38.5322],[-121.7641,38.5261],[-121.7386,38.5377],[-121.712,38.538],[-121.6951,38.5232],[-121.6937,38.3137],[-121.5933,38.3131],[-121.6053,38.2954],[-121.6024,38.2204],[-121.6135,38.1975],[-121.6624,38.1821],[-121.6856,38.1596],[-121.6921,38.1331],[-121.7065,38.1117],[-121.7117,38.1137],[-121.7391,38.0932],[-121.802,38.0626],[-121.8433,38.0769],[-121.8648,38.0717],[-121.8689,38.0626],[-121.8931,38.0536],[-121.9063,38.0594],[-121.9128,38.0832],[-121.973,38.0734],[-121.9868,38.0861],[-122.013,38.094],[-121.9843,38.1135],[-122.0033,38.1394],[-122.0459,38.1373],[-122.0622,38.1323],[-122.0734,38.1006],[-122.1313,38.0435],[-122.1526,38.0426],[-122.1881,38.0707],[-122.1985,38.0606],[-122.2066,38.0679],[-122.2243,38.0648],[-122.242,38.0782],[-122.2761,38.0662],[-122.2841,38.0837],[-122.311,38.1086],[-122.3985,38.1433],[-122.407,38.1557],[-122.1954,38.155],[-122.1945,38.1647],[-122.2151,38.1797],[-122.2057,38.2082],[-122.194,38.2136],[-122.2054,38.2446],[-122.1952,38.2507],[-122.1968,38.2584],[-122.2169,38.2623],[-122.2123,38.2728],[-122.1884,38.2716],[-122.2035,38.2929],[-122.1991,38.3001],[-122.206,38.3157],[-122.0648,38.3159],[-122.0614,38.3296],[-122.0734,38.3609],[-122.1252,38.4242],[-122.1236,38.4476],[-122.1049,38.4908],[-122.1033,38.5133],[-122.0574,38.5174],[-122.0325,38.4943],[-122.0115,38.4891],[-121.9403,38.5334],[-121.909,38.5296],[-121.8859,38.5388]]],"Sonoma":[[[-123.2511,38.8084],[-123.1363,38.8091],[-123.1366,38.8394],[-123.0812,38.8384],[-123.081,38.8524],[-122.8216,38.8501],[-122.8087,38.8366],[-122.7958,38.8388],[-122.7914,38.8304],[-122.7487,38.8042],[-122.7482,38.7878],[-122.7201,38.7535],[-122.7086,38.7488],[-122.7104,38.7321],[-122.7009,38.7289],[-122.6918,38.7109],[-122.6475,38.7069],[-122.6255,38.6744],[-122.6242,38.6498],[-122.6341,38.6369],[-122.6283,38.623],[-122.6464,38.5986],[-122.6305,38.579],[-122.6321,38.5699],[-122.6204,38.5657],[-122.6208,38.5603],[-122.5851,38.5491],[-122.5687,38.529],[-122.5439,38.52],[-122.5449,38.4963],[-122.5296,38.4696],[-122.5162,38.4709],[-122.5073,38.4573],[-122.483,38.4527],[-122.48,38.443],[-122.4955,38.4235],[-122.4706,38.4049],[-122.4659,38.3904],[-122.4479,38.3793],[-122.4576,38.3672],[-122.4267,38.3488],[-122.4054,38.3221],[-122.3946,38.3047],[-122.4037,38.2996],[-122.4046,38.2814],[-122.397,38.2721],[-122.3882,38.2742],[-122.3899,38.2607],[-122.3746,38.2445],[-122.3668,38.247],[-122.3599,38.2305],[-122.3589,38.2095],[-122.3504,38.2006],[-122.3605,38.1951],[-122.3574,38.184],[-122.3679,38.1835],[-122.3676,38.1588],[-122.3968,38.1615],[-122.407,38.1557],[-122.3985,38.1433],[-122.405,38.1348],[-122.4402,38.1174],[-122.5006,38.1118],[-122.524,38.1435],[-122.5437,38.1581],[-122.5579,38.1602],[-122.5679,38.1838],[-122.5926,38.1888],[-122.6033,38.181],[-122.6492,38.1811],[-122.723,38.2071],[-122.7399,38.207],[-122.9069,38.3202],[-122.9354,38.3096],[-122.9652,38.3171],[-122.969,38.3108],[-122.994,38.3064],[-122.9936,38.3001],[-123.0027,38.2957],[-123.0399,38.3187],[-123.0497,38.3339],[-123.0648,38.3042],[-123.0751,38.3199],[-123.0676,38.3566],[-123.0855,38.3906],[-123.0964,38.3939],[-123.0984,38.4065],[-123.1147,38.4215],[-123.1333,38.4541],[-123.1919,38.4893],[-123.232,38.5031],[-123.2357,38.5094],[-123.2511,38.5102],[-123.2857,38.5399],[-123.332,38.5655],[-123.3433,38.5902],[-123.372,38.6073],[-123.4104,38.6628],[-123.4319,38.6796],[-123.4409,38.6992],[-123.4927,38.7363],[-123.5243,38.7493],[-123.5337,38.7684],[-123.5181,38.7636],[-123.497,38.7786],[-123.3682,38.7771],[-123.3684,38.8066],[-123.2511,38.8084]]],"Marin":[[[-122.4727,37.832],[-122.4994,37.8199],[-122.5262,37.8211],[-122.5634,37.8524],[-122.5888,37.8615],[-122.5988,37.8729],[-122.6179,37.877],[-122.6769,37.925],[-122.6972,37.9344],[-122.6824,37.9062],[-122.7017,37.8939],[-122.7273,37.9039],[-122.7367,37.9255],[-122.7821,37.9476],[-122.7922,37.9702],[-122.8212,37.9963],[-122.8565,38.0167],[-122.9315,38.0353],[-122.9375,38.0461],[-122.9269,38.0639],[-122.9507,38.0581],[-122.9397,38.0317],[-122.9608,38.0274],[-122.9906,37.9946],[-123.0178,37.994],[-122.9504,38.1452],[-122.9495,38.1642],[-122.9557,38.178],[-122.9666,38.1832],[-122.9665,38.1992],[-122.9919,38.2326],[-122.9874,38.238],[-122.9301,38.1841],[-122.8825,38.1234],[-122.8394,38.0871],[-122.8253,38.0908],[-122.8647,38.1192],[-122.8629,38.1273],[-122.901,38.1654],[-122.9316,38.2123],[-122.954,38.2192],[-122.9525,38.2302],[-122.9706,38.2319],[-122.9675,38.2506],[-123.0027,38.2957],[-122.9936,38.3001],[-122.9951,38.3057],[-122.969,38.3108],[-122.9652,38.3171],[-122.9354,38.3096],[-122.9069,38.3202],[-122.7399,38.207],[-122.723,38.2071],[-122.6492,38.1811],[-122.6033,38.181],[-122.5926,38.1888],[-122.5651,38.1822],[-122.5579,38.1602],[-122.5437,38.1581],[-122.524,38.1435],[-122.5069,38.1167],[-122.4884,38.1052],[-122.495,38.0927],[-122.4889,38.091],[-122.4843,38.0721],[-122.5093,38.0156],[-122.4659,38.0044],[-122.447,37.9856],[-122.456,37.9801],[-122.4727,37.9824],[-122.4765,37.9742],[-122.4952,37.97],[-122.4871,37.948],[-122.4798,37.9438],[-122.4891,37.937],[-122.5045,37.9435],[-122.5057,37.9369],[-122.5005,37.9254],[-122.4746,37.9152],[-122.4723,37.9033],[-122.4494,37.894],[-122.438,37.8815],[-122.451,37.872],[-122.4708,37.8706],[-122.4736,37.8851],[-122.4886,37.8953],[-122.4983,37.8936],[-122.4988,37.8776],[-122.5123,37.8888],[-122.5124,37.8778],[-122.4784,37.8556],[-122.4727,37.832]]],"San Mateo":[[[-122.5028,37.7081],[-122.3932,37.7083],[-122.377,37.6572],[-122.3803,37.648],[-122.3919,37.6475],[-122.3964,37.6388],[-122.3549,37.6149],[-122.3586,37.6091],[-122.3701,37.6142],[-122.3781,37.6059],[-122.3574,37.5923],[-122.321,37.592],[-122.3065,37.5758],[-122.2735,37.5702],[-122.2627,37.5739],[-122.2519,37.5675],[-122.2451,37.5572],[-122.2253,37.5472],[-122.2491,37.5206],[-122.2443,37.5077],[-122.2112,37.5075],[-122.196,37.5236],[-122.1655,37.499],[-122.1398,37.5071],[-122.13,37.5031],[-122.1235,37.4738],[-122.1159,37.466],[-122.1241,37.4529],[-122.1628,37.4538],[-122.1905,37.431],[-122.1876,37.4147],[-122.1945,37.4079],[-122.1905,37.3853],[-122.2007,37.372],[-122.2004,37.3567],[-122.1828,37.333],[-122.1866,37.3155],[-122.1621,37.3042],[-122.1523,37.2861],[-122.1528,37.2154],[-122.2426,37.2151],[-122.2427,37.19],[-122.3177,37.1869],[-122.3118,37.1475],[-122.2894,37.1135],[-122.293,37.1073],[-122.306,37.1164],[-122.3278,37.1134],[-122.3388,37.1214],[-122.3387,37.137],[-122.3596,37.1497],[-122.365,37.1701],[-122.3966,37.1852],[-122.4047,37.1956],[-122.4184,37.2487],[-122.4088,37.2799],[-122.4005,37.3551],[-122.4446,37.4377],[-122.4456,37.4615],[-122.4584,37.4911],[-122.4715,37.5011],[-122.4988,37.4999],[-122.518,37.5241],[-122.5142,37.5635],[-122.5199,37.5949],[-122.5036,37.5977],[-122.4944,37.6367],[-122.5028,37.7081]]],"Santa Clara":[[[-121.8491,37.099],[-121.9107,37.1133],[-121.9727,37.1417],[-121.9911,37.1443],[-122.0002,37.1588],[-122.0259,37.1723],[-122.0551,37.2127],[-122.0662,37.2104],[-122.0788,37.2232],[-122.0898,37.2233],[-122.1239,37.2597],[-122.1484,37.2755],[-122.1621,37.3042],[-122.1866,37.3155],[-122.1828,37.333],[-122.2004,37.3567],[-122.2007,37.372],[-122.1896,37.3913],[-122.1945,37.4079],[-122.1876,37.4147],[-122.1905,37.431],[-122.1628,37.4538],[-122.1262,37.4536],[-122.1174,37.4652],[-122.0638,37.4456],[-122.0393,37.4514],[-122.0334,37.4603],[-121.9967,37.4649],[-121.9743,37.4594],[-121.9618,37.4627],[-121.9458,37.4529],[-121.9255,37.4544],[-121.8826,37.4706],[-121.8653,37.4846],[-121.473,37.4823],[-121.4868,37.4757],[-121.4843,37.466],[-121.464,37.4538],[-121.4619,37.4388],[-121.4726,37.4233],[-121.4564,37.4067],[-121.4567,37.3955],[-121.4125,37.3894],[-121.4091,37.3807],[-121.4236,37.3588],[-121.4058,37.311],[-121.4368,37.292],[-121.4436,37.2966],[-121.454,37.2841],[-121.4557,37.2494],[-121.4417,37.2311],[-121.4227,37.2224],[-121.4,37.1509],[-121.3836,37.1515],[-121.3846,37.1655],[-121.3632,37.1835],[-121.3487,37.1811],[-121.3284,37.166],[-121.2991,37.1658],[-121.2823,37.1837],[-121.2621,37.1593],[-121.2366,37.1567],[-121.2313,37.1385],[-121.2173,37.123],[-121.2304,37.0969],[-121.243,37.0927],[-121.2082,37.062],[-121.2258,37.0521],[-121.2245,37.0397],[-121.2445,37.032],[-121.2331,36.9993],[-121.2451,36.9929],[-121.2459,36.983],[-121.2154,36.9612],[-121.4182,36.9605],[-121.4506,36.9889],[-121.47,36.9777],[-121.4889,36.9831],[-121.5118,36.9594],[-121.5138,36.9452],[-121.559,36.9091],[-121.5601,36.8974],[-121.5796,36.8967],[-121.5812,36.9193],[-121.5904,36.9262],[-121.6072,36.9261],[-121.6248,36.9405],[-121.6458,36.9323],[-121.654,36.9506],[-121.6633,36.9519],[-121.6643,36.9632],[-121.6933,36.9682],[-121.6984,36.975],[-121.6954,36.9851],[-121.7296,36.9979],[-121.7188,37.0076],[-121.7362,37.0153],[-121.7278,37.0228],[-121.7398,37.0277],[-121.7541,37.0461],[-121.8091,37.0693],[-121.8182,37.0837],[-121.8491,37.099]]],"Napa":[[[-122.5698,38.53],[-122.5851,38.5491],[-122.6208,38.5603],[-122.6204,38.5657],[-122.6321,38.5699],[-122.6305,38.579],[-122.6464,38.5986],[-122.6283,38.623],[-122.6341,38.6369],[-122.6242,38.6498],[-122.6274,38.6675],[-122.4639,38.7052],[-122.409,38.7763],[-122.4123,38.7858],[-122.398,38.804],[-122.3794,38.8021],[-122.3735,38.817],[-122.4039,38.8556],[-122.3951,38.8642],[-122.3852,38.8525],[-122.3486,38.8361],[-122.3262,38.8459],[-122.3154,38.8395],[-122.2898,38.8393],[-122.2596,38.7899],[-122.2501,38.7553],[-122.232,38.735],[-122.2242,38.7],[-122.2021,38.6885],[-122.1983,38.6692],[-122.1665,38.6527],[-122.1612,38.6354],[-122.1704,38.6296],[-122.1683,38.6193],[-122.1515,38.6252],[-122.1281,38.5837],[-122.1116,38.5241],[-122.1033,38.5133],[-122.1049,38.4908],[-122.1236,38.4476],[-122.1252,38.4242],[-122.0734,38.3609],[-122.0614,38.3296],[-122.0648,38.3159],[-122.206,38.3157],[-122.1991,38.3001],[-122.2035,38.2929],[-122.1884,38.2716],[-122.2123,38.2728],[-122.2169,38.2623],[-122.1968,38.2584],[-122.1952,38.2507],[-122.2054,38.2446],[-122.194,38.2136],[-122.2057,38.2082],[-122.2151,38.1797],[-122.1945,38.1647],[-122.1954,38.155],[-122.4068,38.1556],[-122.3968,38.1615],[-122.3662,38.1609],[-122.3679,38.1835],[-122.3574,38.184],[-122.3605,38.1951],[-122.3504,38.2006],[-122.3589,38.2095],[-122.3668,38.247],[-122.3746,38.2445],[-122.3899,38.2607],[-122.3882,38.2742],[-122.397,38.2721],[-122.4046,38.2814],[-122.4037,38.2996],[-122.3946,38.3047],[-122.4054,38.3221],[-122.4267,38.3488],[-122.4576,38.3672],[-122.4479,38.3793],[-122.4659,38.3904],[-122.4706,38.4049],[-122.4955,38.4235],[-122.48,38.443],[-122.483,38.4527],[-122.5073,38.4573],[-122.5162,38.4709],[-122.5296,38.4696],[-122.5449,38.4963],[-122.5439,38.52],[-122.5698,38.53]]]};
+
+        window.kvRender3D = function(canvas, userLat, userLon){
+          var ctx = canvas.getContext('2d');
+          var yaw = -0.5, pitch = 0.92, dragging = false, lastX = 0, lastY = 0, auto = true;
+          var zoom = 1;
+          var PLACES = (window.KV_PLACES||[]);
+
+          // centre the model on the region so rotation orbits the middle
+          var all = [];
+          Object.keys(COUNTIES).forEach(function(k){
+            COUNTIES[k].forEach(function(r){ r.forEach(function(p){ all.push(p); }); });
+          });
+          var lons = all.map(function(p){return p[0];}), lats = all.map(function(p){return p[1];});
+          var cLon = (Math.min.apply(null,lons)+Math.max.apply(null,lons))/2;
+          var cLat = (Math.min.apply(null,lats)+Math.max.apply(null,lats))/2;
+          var span = Math.max(Math.max.apply(null,lons)-Math.min.apply(null,lons),
+                              Math.max.apply(null,lats)-Math.min.apply(null,lats));
+          var SC = 2.0 / span;                       // world units across
+          var DEPTH = 0.115;                          // extrusion height
+
+          function world(lon, lat, z){
+            // lon/lat -> centred world space, x east, y north, z up
+            return [ (lon-cLon)*SC*Math.cos(cLat*Math.PI/180), (lat-cLat)*SC, z ];
+          }
+
+          function project(p, w, h){
+            var cy = Math.cos(yaw), sy = Math.sin(yaw);
+            var x1 =  p[0]*cy - p[1]*sy;
+            var y1 =  p[0]*sy + p[1]*cy;
+            var z1 =  p[2];
+            var cp = Math.cos(pitch), sp = Math.sin(pitch);
+            var y2 = y1*cp - z1*sp;
+            var z2 = y1*sp + z1*cp;
+            var dist = 4.2;
+            var f = 2.9 / (dist - z2 * 0.0 + (1.6 - y2*0));   // simple perspective
+            var persp = 3.2 / (3.6 + y2);
+            return [ w/2 + x1 * persp * (w*0.30) * zoom,
+                     h/2 - (z2 * persp * (h*0.30) * zoom) + h*0.06,
+                     y2 ];
+          }
+
+          function drawPoly(pts, fill, stroke, lw){
+            ctx.beginPath();
+            pts.forEach(function(p,i){ i ? ctx.lineTo(p[0],p[1]) : ctx.moveTo(p[0],p[1]); });
+            ctx.closePath();
+            if (fill){ ctx.fillStyle = fill; ctx.fill(); }
+            if (stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = lw||1; ctx.stroke(); }
+          }
+
+          function frame(){
+            var w = canvas.width, h = canvas.height;
+            ctx.clearRect(0,0,w,h);
+
+            var faces = [];
+            Object.keys(COUNTIES).forEach(function(name){
+              COUNTIES[name].forEach(function(ring){
+                var top = ring.map(function(p){ return project(world(p[0],p[1],DEPTH), w, h); });
+                var bot = ring.map(function(p){ return project(world(p[0],p[1],0), w, h); });
+
+                // side walls, one quad per edge, depth-sorted with everything else
+                for (var i=0;i<ring.length-1;i++){
+                  var quad = [bot[i], bot[i+1], top[i+1], top[i]];
+                  var d = (quad[0][2]+quad[1][2]+quad[2][2]+quad[3][2])/4;
+                  faces.push({d:d, pts:quad, kind:'side'});
+                }
+                var dTop = top.reduce(function(s,p){return s+p[2];},0)/top.length;
+                faces.push({d:dTop - 0.001, pts:top, kind:'top', name:name});
+              });
+            });
+
+            faces.sort(function(a,b){ return b.d - a.d; });   // painter's algorithm
+            faces.forEach(function(f){
+              if (f.kind === 'side'){
+                drawPoly(f.pts, 'rgba(16,44,78,0.80)', 'rgba(90,170,230,0.16)', 1);
+              } else {
+                drawPoly(f.pts, 'rgba(46,122,190,0.30)', 'rgba(140,225,255,0.75)', 1.1);
+              }
+            });
+
+            // city markers, revealed as you zoom into the region
+            if (zoom > 1.6 && PLACES.length){
+              var alpha = Math.min(1, (zoom - 1.6) / 1.2);
+              ctx.font = '600 ' + (9 + Math.min(3, zoom)) + 'px ui-monospace, monospace';
+              PLACES.forEach(function(c){
+                var q = project(world(c.lon, c.lat, DEPTH), w, h);
+                ctx.beginPath(); ctx.arc(q[0], q[1], 2.2, 0, Math.PI*2);
+                ctx.fillStyle = 'rgba(140,225,255,' + (alpha*0.9) + ')'; ctx.fill();
+                ctx.fillStyle = 'rgba(190,235,255,' + (alpha*0.75) + ')';
+                ctx.fillText(c.n, q[0] + 6, q[1] + 3);
+              });
+            }
+
+            // the user's position, standing above the surface
+            if (typeof userLat === 'number' && typeof userLon === 'number'){
+              var base = project(world(userLon, userLat, DEPTH), w, h);
+              var tip  = project(world(userLon, userLat, DEPTH + 0.16), w, h);
+              ctx.beginPath(); ctx.moveTo(base[0],base[1]); ctx.lineTo(tip[0],tip[1]);
+              ctx.strokeStyle = 'rgba(255,200,120,0.95)'; ctx.lineWidth = 1.6; ctx.stroke();
+              ctx.beginPath(); ctx.arc(tip[0], tip[1], 3.4, 0, Math.PI*2);
+              ctx.fillStyle = '#FFC878'; ctx.fill();
+              ctx.beginPath(); ctx.arc(tip[0], tip[1], 8, 0, Math.PI*2);
+              ctx.strokeStyle = 'rgba(255,200,120,0.35)'; ctx.lineWidth = 1; ctx.stroke();
+              ctx.font = '600 10px ui-monospace, monospace';
+              ctx.fillStyle = '#FFD9A0';
+              ctx.fillText('YOU', tip[0] + 11, tip[1] + 3);
+            }
+          }
+
+          function resize(){
+            var r = canvas.parentElement.getBoundingClientRect();
+            var dpr = Math.min(window.devicePixelRatio || 1, 2);
+            canvas.width = Math.round(r.width * dpr);
+            canvas.height = Math.round(r.height * dpr);
+            canvas.style.width = r.width + 'px';
+            canvas.style.height = r.height + 'px';
+            frame();
+          }
+
+          // Two-finger pinch. Tracked manually so one finger stays free for
+          // scrolling the page - on a phone the map must never trap the scroll.
+          var pts = {}, pinchStart = 0, zoomStart = 1;
+          canvas.addEventListener('pointerdown', function(e){ pts[e.pointerId] = e; }, true);
+          canvas.addEventListener('pointerup', function(e){ delete pts[e.pointerId]; pinchStart = 0; }, true);
+          canvas.addEventListener('pointercancel', function(e){ delete pts[e.pointerId]; pinchStart = 0; }, true);
+          canvas.addEventListener('pointermove', function(e){
+            if (!(e.pointerId in pts)) return;
+            pts[e.pointerId] = e;
+            var ids = Object.keys(pts);
+            if (ids.length === 2){
+              var a = pts[ids[0]], b = pts[ids[1]];
+              var dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+              if (!pinchStart){ pinchStart = dist; zoomStart = zoom; }
+              else {
+                auto = false;
+                zoom = Math.max(0.6, Math.min(6, zoomStart * (dist / pinchStart)));
+                frame();
+              }
+              e.preventDefault();
+            }
+          }, true);
+
+          canvas.addEventListener('pointerdown', function(e){
+            dragging = true; auto = false; lastX = e.clientX; lastY = e.clientY;
+            canvas.setPointerCapture(e.pointerId);
+          });
+          canvas.addEventListener('pointermove', function(e){
+            if (!dragging) return;
+            if (Object.keys(pts).length > 1) return;   // pinching, not rotating
+            yaw   += (e.clientX - lastX) * 0.008;
+            pitch += (e.clientY - lastY) * 0.005;
+            pitch = Math.max(0.25, Math.min(1.45, pitch));
+            lastX = e.clientX; lastY = e.clientY;
+            frame();
+          });
+          canvas.addEventListener('pointerup', function(){ dragging = false; });
+          canvas.addEventListener('wheel', function(e){
+            e.preventDefault(); auto = false;
+            zoom = Math.max(0.6, Math.min(6, zoom * (e.deltaY < 0 ? 1.12 : 0.89)));
+            frame();
+          }, {passive:false});
+
+          var raf;
+          (function loop(){
+            if (auto){ yaw += 0.0016; frame(); }
+            raf = requestAnimationFrame(loop);
+          })();
+
+          window.addEventListener('resize', resize);
+          resize();
+          var wrap = canvas.parentElement;
+          var zc = wrap && wrap.querySelector('.kv-zoom');
+          if (zc){
+            zc.addEventListener('click', function(e){
+              var b = e.target.closest('button'); if (!b) return;
+              auto = false;
+              var k = b.dataset.z;
+              if (k === 'in')  zoom = Math.min(6, zoom * 1.35);
+              if (k === 'out') zoom = Math.max(0.6, zoom / 1.35);
+              if (k === 'reset'){ zoom = 1; yaw = -0.5; pitch = 0.92; auto = true; }
+              frame();
+            });
+          }
+          return { stop: function(){ cancelAnimationFrame(raf); } };
+        };
+      })();
+    </script>
+<script>window.KV_PLACES=[{n:"SAN FRANCISCO",lat:37.7749,lon:-122.4194},{n:"OAKLAND",lat:37.8044,lon:-122.2712},{n:"SAN JOSE",lat:37.3382,lon:-121.8863},{n:"BERKELEY",lat:37.8715,lon:-122.2730},{n:"DALY CITY",lat:37.6879,lon:-122.4702},{n:"SAN MATEO",lat:37.5630,lon:-122.3255},{n:"PALO ALTO",lat:37.4419,lon:-122.1430},{n:"FREMONT",lat:37.5485,lon:-121.9886},{n:"HAYWARD",lat:37.6688,lon:-122.0808},{n:"WALNUT CREEK",lat:37.9101,lon:-122.0652},{n:"CONCORD",lat:37.9780,lon:-122.0311},{n:"RICHMOND",lat:37.9358,lon:-122.3477},{n:"SAN RAFAEL",lat:37.9735,lon:-122.5311},{n:"NOVATO",lat:38.1074,lon:-122.5697},{n:"PETALUMA",lat:38.2324,lon:-122.6367},{n:"SANTA ROSA",lat:38.4404,lon:-122.7141},{n:"NAPA",lat:38.2975,lon:-122.2869},{n:"VALLEJO",lat:38.1041,lon:-122.2566},{n:"FAIRFIELD",lat:38.2494,lon:-122.0400},{n:"LIVERMORE",lat:37.6819,lon:-121.7680},{n:"GILROY",lat:37.0058,lon:-121.5683}];</script>
+
+    <script>
+      (function(){
+        var BASE = "https://kroven-console-production.up.railway.app";
+
+        // Loads Mapbox only if a token is actually configured. No token means
+        // no CDN request at all - the console keeps its own renderer.
+        window.kvTryMapbox = function(container, lat, lon, onFallback){
+          fetch(BASE + '/api/mapconfig')
+            .then(function(r){ return r.json(); })
+            .then(function(cfg){
+              if (!cfg.enabled){ onFallback(cfg.reason); return; }
+              loadMapbox(function(ok){
+                if (!ok){ onFallback('Mapbox library failed to load.'); return; }
+                start(container, cfg, lat, lon, onFallback);
+              });
+            })
+            .catch(function(){ onFallback('Could not reach the map config service.'); });
+        };
+
+        function loadMapbox(cb){
+          if (window.mapboxgl){ cb(true); return; }
+          var css = document.createElement('link');
+          css.rel = 'stylesheet';
+          css.href = 'https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.css';
+          document.head.appendChild(css);
+          var s = document.createElement('script');
+          s.src = 'https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.js';
+          s.onload = function(){ cb(!!window.mapboxgl); };
+          s.onerror = function(){ cb(false); };
+          document.head.appendChild(s);
+        }
+
+        function start(container, cfg, lat, lon, onFallback){
+          try {
+            container.innerHTML = '<div id="kv-mapbox" style="position:absolute;inset:0"></div>';
+            mapboxgl.accessToken = cfg.token;
+            var map = new mapboxgl.Map({
+              container: 'kv-mapbox',
+              style: cfg.style,
+              center: (typeof lon === 'number' && typeof lat === 'number') ? [lon, lat] : cfg.center,
+              zoom: 15.2,
+              pitch: 62,
+              bearing: -22,
+              antialias: true,
+              // the beta boundary, so panning stops where coverage stops
+              maxBounds: cfg.bounds,
+              minZoom: cfg.min_zoom,
+              maxZoom: cfg.max_zoom
+            });
+
+            map.addControl(new mapboxgl.NavigationControl({visualizePitch:true}), 'top-right');
+
+            map.on('style.load', function(){
+              // real building footprints, extruded by their real height
+              var layers = map.getStyle().layers || [];
+              var labelLayer = null;
+              for (var i=0;i<layers.length;i++){
+                if (layers[i].type === 'symbol' && layers[i].layout && layers[i].layout['text-field']){
+                  labelLayer = layers[i].id; break;
+                }
+              }
+              if (!map.getLayer('kv-buildings')){
+                map.addLayer({
+                  id: 'kv-buildings',
+                  source: 'composite',
+                  'source-layer': 'building',
+                  filter: ['==', 'extrude', 'true'],
+                  type: 'fill-extrusion',
+                  minzoom: 14,
+                  paint: {
+                    'fill-extrusion-color': [
+                      'interpolate', ['linear'], ['get','height'],
+                      0, '#123a52',
+                      40, '#1c5f8f',
+                      120, '#3FA9F5'
+                    ],
+                    'fill-extrusion-height': ['get','height'],
+                    'fill-extrusion-base': ['get','min_height'],
+                    'fill-extrusion-opacity': 0.85
+                  }
+                }, labelLayer);
+              }
+
+              if (typeof lat === 'number' && typeof lon === 'number'){
+                var el = document.createElement('div');
+                el.style.cssText = 'width:12px;height:12px;border-radius:50%;'
+                  + 'background:#FFC878;box-shadow:0 0 0 6px rgba(255,200,120,.25),0 0 14px #FFC878';
+                new mapboxgl.Marker({element: el}).setLngLat([lon, lat])
+                  .setPopup(new mapboxgl.Popup({offset:14}).setText('You')).addTo(map);
+              }
+            });
+
+            map.on('error', function(e){
+              var msg = (e && e.error && e.error.message) || 'Mapbox error';
+              onFallback(msg);
+            });
+          } catch (err){
+            onFallback('Mapbox failed to start: ' + err.message);
+          }
+        }
+      })();
+    </script>
+
+    <style>
+      /* Vertical swipes scroll the page; horizontal drags rotate the model.
+         Without this the canvas swallowed the scroll and the console was a
+         dead end on a phone. */
+      .kv-3d{ touch-action:pan-y; }
+      #kv-mapbox{ touch-action:pan-y; }
+
+      /* The close control has to stay reachable from anywhere in a 3-screen
+         scroll, so the header travels with it. */
+      .kv-head{ position:sticky; top:-4px; z-index:20; padding:8px 0 10px;
+        background:linear-gradient(180deg,#050B14 72%, rgba(5,11,20,0));
+        backdrop-filter:blur(6px); }
+      #kv-console-close{ min-width:44px; min-height:44px; display:flex;
+        align-items:center; justify-content:center; font-size:20px; }
+
+      @media (max-width:760px){
+        .kv-3d-wrap{ height:230px; }
+        #kv-console{ padding:10px 12px 30px; }
+        .kv-tile{ min-height:0; padding:11px 12px; }
+        .kv-value{ font-size:20px; }
+        /* secondary tiles fold away so the console opens as one screen,
+           not three */
+        #kv-console:not(.kv-all) .kv-tile.kv-secondary{ display:none; }
+        #kv-more{ display:block; }
+      }
+      #kv-more{ display:none; width:100%; margin-top:12px; padding:13px;
+        background:rgba(10,22,38,.8); border:1px solid rgba(90,160,220,.25);
+        border-radius:8px; color:#7FD4FF; font-family:var(--k-mono);
+        font-size:10.5px; letter-spacing:1.6px; cursor:pointer; }
+    </style>
+
+    <style>
+      /* CONSOLE was pinned bottom-left on top of "+ Your data" and was
+         effectively invisible. It gets its own corner. */
+      #kv-console-open{ left:auto!important; right:14px!important; bottom:62px!important; }
+
+      .kv-zoom{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px;z-index:5}
+      .kv-zoom button{width:38px;height:38px;border-radius:9px;cursor:pointer;
+        background:rgba(8,18,32,.86);border:1px solid rgba(90,170,230,.35);
+        color:#9FD8F5;font-size:17px;line-height:1;display:flex;align-items:center;
+        justify-content:center;backdrop-filter:blur(6px)}
+      .kv-zoom button:active{background:rgba(20,50,84,.95)}
+
+      /* Desktop: the empty conversation left a tall black void above the
+         greeting. Centring the block splits the space instead of stacking it
+         all on top. */
+      .k-msgs > div:first-child{ margin-top:auto!important; }
+      .k-msgs > div:last-of-type{ margin-bottom:auto; }
+
+      @media (max-width:760px){
+        #kv-console-open{ right:10px!important; bottom:58px!important;
+          font-size:10px!important; padding:8px 11px!important; }
+        .kv-zoom button{ width:44px; height:44px; font-size:19px; }
+        .kv-zoom{ right:8px; top:8px; }
+      }
+    </style>
+
+    <style>
+      #kv-console-close{ margin-left:auto; display:inline-flex; align-items:center; gap:7px;
+        font-family:var(--k-mono); font-size:10.5px; letter-spacing:1.6px;
+        color:#9FD8F5; background:rgba(10,22,38,.85);
+        border:1px solid rgba(90,170,230,.35); border-radius:8px;
+        padding:10px 14px!important; min-height:44px; cursor:pointer; }
+      #kv-console-close:hover{ color:#DCF1FF; border-color:rgba(140,220,255,.6); }
+      #kv-console-close span{ font-size:14px; }
+    </style>
+
+    <div id="kv-switch" role="tablist" aria-label="View">
+      <button data-view="chat" class="kv-on" role="tab">CHAT</button>
+      <button data-view="console" role="tab">CONSOLE</button>
+    </div>
+    <style>
+      /* One control, same place, visible in both views. Previously you opened
+         the console with a floating button in one corner and left it with a
+         different button somewhere else - there was no single obvious way to
+         move between the two. */
+      #kv-switch{position:fixed;top:9px;left:50%;transform:translateX(-50%);
+        z-index:10000;display:inline-flex;gap:2px;padding:3px;border-radius:10px;
+        background:rgba(8,18,32,.9);border:1px solid rgba(90,170,230,.3);
+        backdrop-filter:blur(10px);box-shadow:0 6px 20px rgba(0,0,0,.45)}
+      #kv-switch button{font-family:var(--k-mono);font-size:10px;letter-spacing:1.6px;
+        color:#6FA8CC;background:none;border:none;border-radius:7px;
+        padding:9px 15px;min-height:38px;cursor:pointer;transition:all .15s ease}
+      #kv-switch button:hover{color:#BFE4FA}
+      #kv-switch button.kv-on{background:rgba(63,169,245,.18);color:#DCF1FF;
+        box-shadow:inset 0 0 0 1px rgba(127,231,255,.35)}
+
+      /* the old entry points are redundant now */
+      #kv-console-open{display:none!important}
+
+      @media (max-width:760px){
+        #kv-switch{top:7px}
+        #kv-switch button{font-size:9.5px;padding:8px 13px;min-height:36px}
+        /* keep the header text clear of the switch */
+        .k-header{padding-top:52px!important}
+        /* and the corner buttons clear of it too */
+        #kroven-data-toggle{top:52px!important}
+        #kroven-signals-toggle{top:52px!important}
+        #kroven-activity{top:96px!important}
+      }
+      @media (min-width:761px){
+        .k-header{padding-top:20px!important}
+      }
+    </style>
+    <script>
+      (function(){
+        var sw = document.getElementById('kv-switch');
+        function setView(view){
+          var con = document.getElementById('kv-console');
+          if (!con) return;
+          var wantConsole = view === 'console';
+          var isOpen = !con.classList.contains('kv-hidden');
+          if (wantConsole !== isOpen){
+            // reuse the console's own open/close so history + polling stay correct
+            if (wantConsole) document.getElementById('kv-console-open').click();
+            else if (window.kvCloseConsole) window.kvCloseConsole();
+            else document.getElementById('kv-console-close').click();
+          }
+          [].forEach.call(sw.querySelectorAll('button'), function(b){
+            b.classList.toggle('kv-on', b.dataset.view === view);
+          });
+        }
+        sw.addEventListener('click', function(e){
+          var b = e.target.closest('button');
+          if (b) setView(b.dataset.view);
+        });
+        // keep the switch honest if the view changes another way (back button, Esc)
+        setInterval(function(){
+          var con = document.getElementById('kv-console');
+          if (!con) return;
+          var open = !con.classList.contains('kv-hidden');
+          var active = sw.querySelector('.kv-on');
+          var want = open ? 'console' : 'chat';
+          if (!active || active.dataset.view !== want){
+            [].forEach.call(sw.querySelectorAll('button'), function(b){
+              b.classList.toggle('kv-on', b.dataset.view === want);
+            });
+          }
+        }, 400);
+      })();
+    </script>
+
+    <style>
+      /* 1. The switch sat on top of the KROVEN wordmark and clipped the console
+            location line to "VE". Give it its own band and push both headers
+            clear of it. */
+      #kv-switch{ top:8px!important; }
+      @media (max-width:760px){
+        .k-header{ padding-top:58px!important; }
+        #kv-console{ padding-top:56px!important; }
+        .kv-head{ top:52px!important; }
+        #kroven-data-toggle{ top:60px!important; }
+        #kroven-signals-toggle{ top:60px!important; }
+        #kroven-activity{ top:104px!important; }
+      }
+
+      /* 2. Two ways back was one too many - the switch is the way back now. */
+      #kv-console-close{ display:none!important; }
+
+      /* 3. Chat-only chrome must not float over the console. */
+      #kv-console:not(.kv-hidden) ~ #kroven-data-toggle,
+      #kv-console:not(.kv-hidden) ~ #kroven-signals-toggle,
+      #kv-console:not(.kv-hidden) ~ #kroven-activity,
+      body.kv-console-open #kroven-data-toggle,
+      body.kv-console-open #kroven-signals-toggle,
+      body.kv-console-open #kroven-activity,
+      body.kv-console-open #kroven-signals{ display:none!important; }
+
+      /* 4. The map was a stamp in the middle of a big empty tile. */
+      @media (max-width:760px){
+        .kv-3d-wrap{ height:300px; }
+        .kv-tile.kv-full{ padding-left:8px; padding-right:8px; }
+      }
+
+      /* 5. Chat: close the gap between the greeting and the pills on a phone. */
+      @media (max-width:760px){
+        .k-msgs{ padding-bottom:6px!important; }
+        .k-chips{ row-gap:7px; }
+      }
+    </style>
+    <script>
+      (function(){
+        // body flag so the chat chrome can be hidden while the console is up
+        var con = document.getElementById('kv-console');
+        if (!con) return;
+        var sync = function(){
+          document.body.classList.toggle('kv-console-open', !con.classList.contains('kv-hidden'));
+        };
+        sync();
+        new MutationObserver(sync).observe(con, {attributes:true, attributeFilter:['class']});
+      })();
+    </script>
+
+    <style>
+      /* The console header was sticky so its close button stayed reachable.
+         That button is gone - the fixed CHAT|CONSOLE switch replaced it - so
+         the bar had no purpose and parked itself over the map, covering the
+         zoom controls. It scrolls with the content again. */
+      .kv-head{ position:static!important; top:auto!important;
+        background:none!important; backdrop-filter:none!important;
+        padding:0 0 12px!important; }
+
+      /* With the switch overhead, the brand block inside the console is
+         duplicate furniture. Keep only the location line. */
+      .kv-brand{ display:none!important; }
+      .kv-loc{ border-left:none!important; padding-left:0!important;
+        font-size:10.5px!important; }
+
+      @media (max-width:760px){
+        /* clear of the fixed switch, nothing sticky underneath it */
+        #kv-console{ padding-top:52px!important; }
+        .kv-head{ padding-bottom:10px!important; }
+        /* zoom controls sit below the tile label, never under a floating bar */
+        .kv-zoom{ top:8px; right:8px; }
+      }
+    </style>
+
+    <style>
+      .kv-tabs{display:flex;gap:4px;margin:0 0 14px;padding:3px;border-radius:9px;
+        background:rgba(10,22,38,.55);border:1px solid rgba(90,160,220,.16)}
+      .kv-tabs button{flex:1;font-family:var(--k-mono);font-size:9.5px;letter-spacing:1.5px;
+        color:#5FA8D6;background:none;border:none;border-radius:7px;padding:10px 8px;
+        min-height:40px;cursor:pointer;transition:all .15s ease}
+      .kv-tabs button.kv-on{background:rgba(63,169,245,.16);color:#DCF1FF;
+        box-shadow:inset 0 0 0 1px rgba(127,231,255,.3)}
+      .kv-wx{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+      .kv-wx-card{background:rgba(10,22,38,.62);border:1px solid rgba(90,160,220,.16);
+        border-radius:9px;padding:12px 13px;position:relative;overflow:hidden}
+      .kv-wx-card::before{content:"";position:absolute;top:0;left:0;right:0;height:1px;
+        background:linear-gradient(90deg,transparent,rgba(120,210,255,.45),transparent)}
+      /* the person's own county leads and is visibly theirs */
+      .kv-wx-card.kv-here{border-color:rgba(255,200,120,.5);
+        background:rgba(38,28,12,.55);order:-1}
+      .kv-wx-card.kv-here::before{background:linear-gradient(90deg,transparent,#FFC878,transparent)}
+      .kv-wx-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+      .kv-wx-city{font-size:13px;font-weight:600;color:#EAF6FF}
+      .kv-here .kv-wx-city{color:#FFE0B0}
+      .kv-wx-temp{font-size:23px;font-weight:600;color:#EAF6FF;font-variant-numeric:tabular-nums}
+      .kv-here .kv-wx-temp{color:#FFD9A0}
+      .kv-wx-county{font-family:var(--k-mono);font-size:8.5px;letter-spacing:1.3px;
+        color:#4E86AE;text-transform:uppercase;margin-top:2px}
+      .kv-wx-cond{font-size:11.5px;color:#8FC4E4;margin-top:8px}
+      .kv-wx-meta{font-family:var(--k-mono);font-size:9px;color:#4E86AE;margin-top:7px;line-height:1.6}
+      .kv-wx-strip{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
+      .kv-wx-chip{font-family:var(--k-mono);font-size:8.5px;color:#7FB8DC;
+        border:1px solid rgba(90,160,220,.22);border-radius:5px;padding:3px 6px}
+      .kv-here-tag{font-family:var(--k-mono);font-size:8px;letter-spacing:1.4px;
+        color:#FFC878;border:1px solid rgba(255,200,120,.4);border-radius:5px;
+        padding:2px 6px;margin-left:6px}
+      @media (max-width:760px){ .kv-wx{grid-template-columns:1fr} }
+    </style>
+    <script>
+      (function(){
+        var BASE = "https://kroven-console-production.up.railway.app";
+        var cache = null;
+
+        window.kvRenderWeather = function(host, userCounty, userCity){
+          host.innerHTML = '<div class="kv-tile kv-full"><div class="kv-label">'
+            + 'Regional forecast</div><div class="kv-none">LOADING…</div></div>';
+
+          var draw = function(d){
+            var here = null, rest = [];
+            (d.regions || []).forEach(function(r){
+              var mine = (userCounty && r.county.toLowerCase() === String(userCounty).toLowerCase())
+                      || (userCity && r.city.toLowerCase() === String(userCity).toLowerCase());
+              (mine ? (here = r, []) : rest).push ? null : null;
+              if (mine) here = r; else rest.push(r);
+            });
+
+            var cards = (here ? [here] : []).concat(rest).map(function(r){
+              var mine = here && r === here;
+              if (r.status !== 'ok'){
+                return '<div class="kv-wx-card' + (mine ? ' kv-here' : '') + '">'
+                  + '<div class="kv-wx-top"><span class="kv-wx-city">' + esc(r.city) + '</span></div>'
+                  + '<div class="kv-wx-county">' + esc(r.county) + ' county</div>'
+                  + '<div class="kv-none" style="margin-top:8px">— NO FEED —</div>'
+                  + '<div class="kv-wx-meta">' + esc(r.detail || 'unavailable') + '</div></div>';
+              }
+              var chips = (r.periods || []).slice(1, 4).map(function(p){
+                return '<span class="kv-wx-chip">' + esc(p.name) + ' ' + p.temp + '°</span>';
+              }).join('');
+              return '<div class="kv-wx-card' + (mine ? ' kv-here' : '') + '">'
+                + '<div class="kv-wx-top"><span class="kv-wx-city">' + esc(r.city)
+                + (mine ? '<span class="kv-here-tag">YOU</span>' : '') + '</span>'
+                + '<span class="kv-wx-temp">' + r.temp + '°</span></div>'
+                + '<div class="kv-wx-county">' + esc(r.county) + ' county</div>'
+                + '<div class="kv-wx-cond">' + esc(r.short || '') + '</div>'
+                + '<div class="kv-wx-meta">high ' + (r.high != null ? r.high + '°' : '—')
+                + ' · low ' + (r.low != null ? r.low + '°' : '—')
+                + ' · rain ' + (r.precip != null ? r.precip + '%' : '—')
+                + ' · wind ' + esc(r.wind || '—') + '</div>'
+                + '<div class="kv-wx-strip">' + chips + '</div></div>';
+            }).join('');
+
+            host.innerHTML = '<div class="kv-wx">' + cards + '</div>'
+              + '<div class="kv-foot">' + d.live_count + '/' + d.total
+              + ' COUNTIES REPORTING · ' + esc(d.source).toUpperCase()
+              + ' · UPDATED ' + String(d.generated_at || '').replace('T', ' ') + '</div>';
+          };
+
+          function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
+            return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+          if (cache){ draw(cache); return; }
+          fetch(BASE + '/api/regions').then(function(r){ return r.json(); })
+            .then(function(d){ cache = d; draw(d); })
+            .catch(function(){
+              host.innerHTML = '<div class="kv-tile kv-full"><div class="kv-label">'
+                + 'Regional forecast</div><div class="kv-none">— NO LINK —</div>'
+                + '<div class="kv-meta">Could not reach the forecast service.</div></div>';
+            });
+        };
+      })();
+    </script>
+
+    <style>
+      /* ============ guardrails ============
+         Chrome should not behave like a document. No text cursor over labels,
+         no accidental selection, no long-press menu, no blue tap flash. The
+         two places selection genuinely helps - reading an answer and the
+         input you are typing in - keep it. */
+      html, body{
+        -webkit-user-select:none; -ms-user-select:none; user-select:none;
+        -webkit-touch-callout:none;
+        -webkit-tap-highlight-color:transparent;
+        cursor:default;
+      }
+      /* answers stay copyable, and the composer stays a real text field */
+      .k-md, .k-msg, .k-input, textarea, input, #kroven-data-panel{
+        -webkit-user-select:text; user-select:text; cursor:auto;
+      }
+      .k-input, textarea, input{ cursor:text; }
+
+      /* anything clickable says so, and nothing else does */
+      button, .k-chip, [role="tab"], .ks-why, .kv-tabs button,
+      #kv-switch button, .kv-zoom button{
+        cursor:pointer; touch-action:manipulation;
+        -webkit-user-select:none; user-select:none;
+      }
+      button:disabled, .k-chip:disabled{ cursor:default; }
+
+      /* the map is a control surface, not an image to drag out of the page */
+      canvas, svg, img{
+        -webkit-user-drag:none; user-drag:none; -webkit-user-select:none; user-select:none;
+      }
+      .kv-3d, #kv-mapbox{ cursor:grab; }
+      .kv-3d:active, #kv-mapbox:active{ cursor:grabbing; }
+
+      /* keyboard users still get a ring; mouse users do not get a stray outline */
+      :focus{ outline:none; }
+      :focus-visible{
+        outline:2px solid rgba(127,231,255,.7); outline-offset:2px; border-radius:6px;
+      }
+
+      /* ============ tightening ============ */
+      .kv-tile{ border-radius:10px; }
+      .kv-label{ margin-bottom:8px; }
+      .kv-meta{ margin-top:6px; }
+      .kv-grid{ gap:10px; }
+      .kv-wx{ gap:9px; }
+      .kv-wx-card{ border-radius:10px; }
+      .k-chip{ letter-spacing:.1px; }
+      #kv-console{ padding-bottom:34px; }
+      .kv-foot{ margin-top:14px; }
+
+      /* stop the layout shifting as numbers tick over */
+      .kv-value, .kv-wx-temp, .ks-val{ font-variant-numeric:tabular-nums; }
+
+      /* scrollbars that match the console instead of the OS default */
+      #kv-console{ scrollbar-width:thin; scrollbar-color:#24405e transparent; }
+      #kv-console::-webkit-scrollbar{ width:9px; }
+      #kv-console::-webkit-scrollbar-thumb{
+        background:#24405e; border-radius:8px; border:2px solid transparent;
+        background-clip:content-box;
+      }
+      #kv-console::-webkit-scrollbar-track{ background:transparent; }
+    </style>
   </body>
 </html>

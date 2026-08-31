@@ -19,3 +19,9 @@ Thumbs.db
 # Editor
 .vscode/
 .idea/
+
+# Local Netlify folder
+.netlify
+
+# Readings buffered to disk when Supabase is unreachable
+energy_logger_buffer.jsonl

@@ -1,86 +1,86 @@
 """
-Rate/pricing layer — this is what turns a forecast into a dollar
-recommendation ("charge now, not in an hour, rates spike then").
+Rate/pricing layer — turns the clock into a cost recommendation.
 
-v1: static time-of-use (TOU) schedule you configure per utility.
-Most residential utilities (PG&E included) publish fixed peak/off-peak
-windows, so this covers the real case without needing a live pricing API.
+Prices come from app.rate_data, which carries its own citation and effective
+date. Nothing here invents a number: where the published tariff gives a range
+(because Baseline Allowance is unknown to us), a range is what comes out.
 
-v2 later: swap in a live rate API (e.g. utility's OpenEI/Green Button
-data, or a service like WattTime) if you want real-time grid pricing
-instead of a fixed schedule.
+The old version of this file hardcoded a flat $0.32/$0.52 with a 3pm peak and a
+comment saying "Example PG&E-style ... replace with the real schedule". Those
+were placeholders that had been reaching users as if they were real prices.
 """
 
-from datetime import datetime, time
+from datetime import datetime, timedelta
+
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from app.rate_data import PEAK_END, PEAK_START, other_period, period_for, pricing_at
+
 router = APIRouter()
-
-# Example PG&E-style residential TOU schedule — replace with the real
-# schedule for your target utility/rate plan.
-RATE_SCHEDULE = [
-    {"start": time(0, 0), "end": time(15, 0), "rate_per_kwh": 0.32, "label": "off-peak"},
-    {"start": time(15, 0), "end": time(21, 0), "rate_per_kwh": 0.52, "label": "peak"},
-    {"start": time(21, 0), "end": time(23, 59), "rate_per_kwh": 0.32, "label": "off-peak"},
-]
-
-
-def rate_at(t: time) -> dict:
-    for window in RATE_SCHEDULE:
-        if window["start"] <= t < window["end"]:
-            return window
-    return RATE_SCHEDULE[0]
 
 
 class RecommendationRequest(BaseModel):
     household_id: str
-    device_battery_pct: float | None = None       # e.g. 5 (phone at 5%)
-    kwh_needed: float = 0.5                        # rough estimate for a phone/laptop charge
+    device_battery_pct: float | None = None
+    kwh_needed: float | None = None   # None => no cost estimate, we don't guess
 
 
 class RecommendationResponse(BaseModel):
     action: str
     reasoning: str
-    estimated_cost: float
-    current_rate_label: str
-    next_rate_change: str | None
+    current_period: str
+    price_low: float
+    price_high: float
+    price_note: str
+    next_change: str | None
+    estimated_cost: str | None
+
+
+def _next_boundary(now: datetime) -> tuple[str, str] | None:
+    """When the price next changes, and what it changes to."""
+    today = now.date()
+    if now.time() < PEAK_START:
+        return ("peak", datetime.combine(today, PEAK_START).strftime("%I:%M %p").lstrip("0"))
+    if now.time() < PEAK_END:
+        return ("off-peak", datetime.combine(today, PEAK_END).strftime("%I:%M %p").lstrip("0"))
+    return ("peak", (datetime.combine(today, PEAK_START) + timedelta(days=1)).strftime("%I:%M %p").lstrip("0"))
 
 
 @router.post("/recommend")
-def recommend(req: RecommendationRequest):
+def recommend(req: RecommendationRequest) -> RecommendationResponse:
     now = datetime.now()
-    current = rate_at(now.time())
+    current = pricing_at(now)
+    alternate = other_period(now)
 
-    # find the next window boundary from now
-    upcoming = None
-    for window in RATE_SCHEDULE:
-        if window["start"] > now.time():
-            upcoming = window
-            break
+    change = _next_boundary(now)
+    next_change = f"{change[0]} pricing starts at {change[1]}" if change else None
 
-    cost_now = round(req.kwh_needed * current["rate_per_kwh"], 2)
-
-    if upcoming and upcoming["rate_per_kwh"] > current["rate_per_kwh"]:
-        minutes_until = (
-            datetime.combine(now.date(), upcoming["start"]) - now
-        ).seconds // 60
-        action = "Charge now"
+    if current.period == "off_peak":
+        action = "Now is the cheaper window"
         reasoning = (
-            f"Rates jump to {upcoming['label']} "
-            f"(${upcoming['rate_per_kwh']}/kWh) in about {minutes_until} min — "
-            f"charging now at ${current['rate_per_kwh']}/kWh saves money."
+            f"Energy is in the lower-priced window ({current.range_text()}). "
+            f"During the higher-priced window it runs {alternate.range_text()}."
         )
-        next_change = f"{upcoming['label']} starts at {upcoming['start'].strftime('%-I:%M %p')}"
     else:
-        action = "Charge now or wait — no rate spike coming up soon"
-        reasoning = f"Currently in {current['label']} at ${current['rate_per_kwh']}/kWh."
-        next_change = None
+        action = "Now is the expensive window"
+        reasoning = (
+            f"Energy is in the higher-priced window ({current.range_text()}). "
+            f"Outside it, energy runs {alternate.range_text()}."
+        )
+
+    estimated = current.cost_range(req.kwh_needed) if req.kwh_needed else None
 
     return RecommendationResponse(
         action=action,
         reasoning=reasoning,
-        estimated_cost=cost_now,
-        current_rate_label=current["label"],
-        next_rate_change=next_change,
+        current_period="higher-priced" if current.period == "peak" else "lower-priced",
+        price_low=current.low,
+        price_high=current.high,
+        price_note=(
+            "A range because what you pay per kWh depends on your plan and how much "
+            "you have already used this month, which we do not know."
+        ),
+        next_change=next_change,
+        estimated_cost=estimated,
     )

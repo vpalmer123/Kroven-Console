@@ -148,11 +148,78 @@ def get_device(household_id: str, device_id: str) -> dict | None:
     return None
 
 
-def sources_for(household_id: str, signal_type: str) -> list[str]:
-    """The `source` strings belonging to devices of one signal_type.
+def role_rules(household_id: str) -> list[dict]:
+    """How to classify a reading's signal_type, including past roles.
 
-    Lets the usage/forecast layer keep aggregate traces out of per-device
-    models without knowing what any particular device is.
+    Devices get physically reassigned — a plug moves from the PS5 to a shared
+    cord — and when that happens its signal_type flips. Classifying old rows by
+    the device's *current* role would silently relabel history: readings logged
+    while a plug genuinely carried one appliance would start being treated as a
+    mixed trace, corrupting exactly the training data a swap is meant to
+    preserve. Nothing is edited, so it looks safe, and the damage only shows up
+    as a model quietly learning from the wrong series.
+
+    So a role has an effective date. Readings before it keep the role that was
+    true at the time; readings after take the new one.
+
+    Keyed on `kind` rather than `name`, because a reassignment usually renames
+    the device too, and `kind` is the part that stays put.
+    """
+    rules = []
+    for d in list_devices(household_id):
+        meta = d.get("meta") or {}
+        rules.append({
+            "kind": (d.get("kind") or "").lower(),
+            "name": (d.get("name") or "").lower(),
+            "previous_name": (meta.get("previous_name") or "").lower(),
+            "current": d.get("signal_type") or "dedicated",
+            "previous": meta.get("previous_signal_type"),
+            "changed_at": meta.get("role_changed_at"),
+        })
+    return rules
+
+
+def signal_type_of(rules: list[dict], source: str, recorded_at: str | None) -> str | None:
+    """Signal type for one reading, as of when it was actually recorded.
+
+    The device's name at the time is the strongest evidence and is checked
+    first: a logger only starts writing the new name once it has picked up the
+    new role, so the name a row carries says which role produced it. The clock
+    is the fallback, and it is genuinely fuzzy at the boundary — the role
+    changes in the database at one instant, but a logger already mid-cycle can
+    write another row under the old role seconds later.
+    """
+    src = (source or "").lower()
+    if not src:
+        return None
+    parts = src.split(":")
+
+    for r in rules:
+        # Kind first, always. A swap hands one device the name the other just
+        # gave up, so "PS5" alone can identify two different devices — but a
+        # source always leads with its kind, which no swap changes.
+        if r["kind"] not in parts and src != r["kind"]:
+            continue
+
+        if r["previous_name"] and r["previous_name"] in parts and r["previous"]:
+            return r["previous"]
+        if r["name"] and r["name"] in parts:
+            return r["current"]
+
+        if r["previous"] and r["changed_at"] and recorded_at:
+            # String compare is safe here: both are ISO-8601 UTC from Postgres.
+            if str(recorded_at) < str(r["changed_at"]):
+                return r["previous"]
+        return r["current"]
+    return None
+
+
+def sources_for(household_id: str, signal_type: str) -> list[str]:
+    """Devices *currently* holding one signal_type. Present-tense only.
+
+    Kept for callers that want the live registry view. Do not use it to filter
+    historical readings — use role_rules()/signal_type_of(), which know when a
+    role changed.
     """
     out = []
     for d in list_devices(household_id):

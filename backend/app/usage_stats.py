@@ -164,22 +164,18 @@ def fetch(db, household_id: str, limit: int = 2000,
         return rows
 
     try:
-        from app.device_registry import sources_for
-        wanted = {s.lower() for s in sources_for(household_id, signal_type)}
+        from app.device_registry import role_rules, signal_type_of
+        rules = role_rules(household_id)
     except Exception:
         return rows
 
-    if not wanted:
+    if not rules:
         return rows
 
-    # `source` looks like 'kasa', 'shelly:shelly_kroven' or 'shelly:x:live'.
-    # Match on any prefix segment so the tag survives those suffixes.
-    kept = []
-    for r in rows:
-        src = str(r.get("source") or "").lower()
-        if not src:
-            continue
-        parts = src.split(":")
-        if any(p in wanted for p in parts) or src in wanted:
-            kept.append(r)
-    return kept
+    # Classified as of each reading's own timestamp, not the device's role
+    # today. A plug that moved from the PS5 to a shared cord logged genuine
+    # single-appliance data before the move, and that data stays dedicated.
+    return [
+        r for r in rows
+        if signal_type_of(rules, r.get("source"), r.get("recorded_at")) == signal_type
+    ]

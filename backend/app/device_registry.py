@@ -25,6 +25,7 @@ import asyncio
 import logging
 import os
 import re
+import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -43,7 +44,10 @@ AMBIGUITY_MARGIN = 0.08
 # How long to let a load ramp before re-reading power after switching on.
 SETTLE_SECONDS = 1.5
 
-_table_missing = False
+# How long to serve env-derived devices after a registry read fails, before
+# trying the database again.
+TABLE_RETRY_SECONDS = 60
+_table_unavailable_until = 0.0
 
 
 # --------------------------------------------------------------------------
@@ -51,10 +55,10 @@ _table_missing = False
 # --------------------------------------------------------------------------
 
 def list_devices(household_id: str) -> list[dict]:
-    """Every device for a household, newest registry first, env as fallback."""
-    global _table_missing
+    """Every device for a household, from the registry, env as fallback."""
+    global _table_unavailable_until
 
-    if not _table_missing:
+    if time.monotonic() >= _table_unavailable_until:
         try:
             rows = (
                 get_db().table("devices")
@@ -67,11 +71,15 @@ def list_devices(household_id: str) -> list[dict]:
             if rows:
                 return rows
         except Exception as e:
-            _table_missing = True
+            # Back off, do not give up. A transient network blip once latched
+            # this permanently, so a process would keep serving env-derived
+            # devices — wrong names, wrong roles, no persisted state — until it
+            # was restarted, long after Supabase had recovered.
+            _table_unavailable_until = time.monotonic() + TABLE_RETRY_SECONDS
             logger.warning(
-                "devices table unavailable (%s); falling back to env-configured "
-                "devices. Run migrations/005_devices.sql to persist them.",
-                type(e).__name__,
+                "devices table unavailable (%s); using env-configured devices "
+                "and retrying in %ds.",
+                type(e).__name__, TABLE_RETRY_SECONDS,
             )
 
     # Cached, because these dicts ARE the state store until migration 005 is

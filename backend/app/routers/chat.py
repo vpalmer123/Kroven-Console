@@ -23,7 +23,8 @@ from app.db import get_db
 from app.device_registry import control_device, list_devices, resolve_device
 from app.device_router import classify as classify_device_intent
 from app.intent import Domain, classify as classify_intent
-from app.usage_stats import fetch as fetch_readings, summarise as summarise_usage
+from app.usage_stats import (by_device as usage_by_device, fetch as fetch_readings,
+                             summarise as summarise_usage)
 from app.regional import resolve as resolve_location
 from app.rate_data import other_period, pricing_at
 from app.routers.rates import recommend, RecommendationRequest
@@ -310,18 +311,33 @@ def _text_blocks(payload: dict) -> list[str]:
 # the real answer. Keeping it produces a reply that announces itself and then
 # answers, which reads like a bot narrating its own plumbing.
 _FILLER = re.compile(
-    r"^(ok(ay)?[,.]?\s*)?(let me|i'?ll|give me a|one)\b.{0,40}"
-    r"(check|look|see|grab|pull|read|moment|sec|second)\b.{0,30}[.!]?$",
-    re.I | re.S,
+    r"^(ok(ay)?[,.]?\s*)?(let me|lemme|i'?ll|i am going to|i'?m going to|"
+    r"give me a|one|hold on|hang on)\b.{0,40}?"
+    r"\b(check|checking|look|looking|see|grab|grabbing|pull|pulling|read|reading|"
+    r"fetch|verify|confirm|moment|sec|second)\b",
+    re.I,
 )
+
+# A measurement is the tell. "Let me check the PS5 — it's drawing 26 W" opens
+# like filler but carries the answer, so the opener alone cannot decide.
+_MEASUREMENT = re.compile(r"\d+(\.\d+)?\s*(w|kw|kwh|wh|v|a|hz|%|c\b)|\$\s*\d", re.I)
 
 
 def _drop_filler(chunks: list[str]) -> list[str]:
     """Drop leading 'let me check' lines when a later chunk actually answers."""
     if len(chunks) < 2:
         return chunks
+
+    def is_filler(c: str) -> bool:
+        c = c.strip()
+        return (
+            len(c) <= 160
+            and bool(_FILLER.match(c))
+            and not _MEASUREMENT.search(c)
+        )
+
     kept = [c for i, c in enumerate(chunks)
-            if i == len(chunks) - 1 or not _FILLER.match(c.strip())]
+            if i == len(chunks) - 1 or not is_filler(c)]
     return kept or chunks[-1:]
 
 
@@ -402,6 +418,12 @@ async def chat(req: ChatRequest):
         summary = summarise_usage(fetch_readings(db, req.household_id))
         if summary is not None:
             domain_blocks.append("THEIR OWN LOGGED USAGE:\n" + summary.describe())
+            # Readings are tagged with the device that produced them, so
+            # per-device questions are answerable. Without this the whole-home
+            # total was all Kroven could see, and it said so.
+            per_device = usage_by_device(db, req.household_id)
+            if per_device:
+                domain_blocks.append(per_device)
         else:
             domain_blocks.append(
                 "THEIR OWN LOGGED USAGE: nothing is logged for this household yet, so "
@@ -638,16 +660,25 @@ async def chat(req: ChatRequest):
             f"{current.peak_end.strftime('%I%p').lstrip('0').lower()}"
         )
         rate_note = (
-            "PRICING: you have no pricing you are allowed to share - not a rate, "
-            "not a cheap/expensive window, and not the clock times a rate changes.\n"
-            "- Never say a window is cheaper or pricier, never name an hour that "
-            "prices change, and never say things like 'until 4' or 'after 9'.\n"
-            "- Never state a price, a cost, or an amount saved.\n"
-            "Answer timing questions from THEIR OWN measured usage instead: when "
-            "they actually draw power, how much they have used, what is running.\n"
-            "If they ask outright whether now is cheaper, say plainly that you are "
-            "working from their usage rather than their rate plan, and that pricing "
-            "is on their bill. Do not fake an answer from a schedule."
+            f"PRICING: you DO know this area's real rate schedule. Right now it is "
+            f"{'the EXPENSIVE part of the day' if current.period == 'peak' else 'a CHEAP part of the day'}"
+            f", and the expensive stretch runs {window} daily. Local time is now "
+            f"{now.strftime('%I:%M%p').lstrip('0').lower()}.\n"
+            "Use it for ADVICE, never as figures. The distinction is the whole rule:\n"
+            "- SAY: whether now is a good or bad time to run something, whether to "
+            "wait, roughly how long until it gets cheaper, which part of the day is "
+            "expensive. Naming the clock hour is fine — 'wait until after 9' is "
+            "useful advice, not a price.\n"
+            "- NEVER SAY: a per-kWh rate, a dollar amount, cents, a percentage "
+            "difference, an amount saved, or a monthly cost. No figures at all.\n"
+            "- NEVER name the utility, the tariff, the plan, or a rate schedule, and "
+            "never offer to show one. People neither know nor care what it is.\n"
+            "You must NOT claim you lack rate information, that you 'only have their "
+            "usage', or that pricing is 'on their bill' — that is false, you have it. "
+            "Answer the timing question directly instead.\n"
+            "If they push for an actual price, say you don't show rate figures, then "
+            "give them the timing answer anyway. Never let the no-figures rule turn "
+            "into a non-answer."
         )
     else:
         rate_note = (

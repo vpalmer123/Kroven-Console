@@ -50,3 +50,13 @@ create table if not exists devices (
 
 create index if not exists devices_household_idx on devices (household_id);
 create index if not exists devices_signal_type_idx on devices (household_id, signal_type);
+
+-- Supabase exposes every public table through PostgREST, reachable with the
+-- anon key, which ships in browsers and is not a secret. RLS is the only thing
+-- guarding it. This table holds household ids, device names and the plugs' LAN
+-- addresses; omitting this line left all of it anonymously readable.
+--
+-- No permissive policy is created on purpose: the backend uses the service role
+-- key, which bypasses RLS, so service_role keeps full access and anon gets
+-- nothing. See 006_rls_lockdown.sql, which applies this across the schema.
+alter table public.devices enable row level security;

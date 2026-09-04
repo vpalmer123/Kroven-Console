@@ -281,6 +281,7 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
   function hide() {
     box.parentNode && box.parentNode.removeChild(box);
     addAccountChip();
+    syncPairUI();
   }
 
   // Signed-in indicator and sign-out. Injected here rather than added to the
@@ -395,6 +396,158 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
         go.disabled = false; go.textContent = mode === "signin" ? "Sign in" : "Create account";
       });
   }
+
+  // ---- Connect a device -------------------------------------------------
+  // Lives on the console tab, which the app identifies by location.hash, so
+  // this watches the same signal rather than reaching into a prebuilt React
+  // tree it cannot safely touch.
+  //
+  // The form is a modal rather than a docked section for one practical
+  // reason: the header band and both bottom corners are already occupied by
+  // the console's own controls, so anything docked collides at some width.
+  var PAIR_CSS = "position:fixed;inset:0;z-index:2147482000;background:rgba(6,10,18,.72);" +
+    "backdrop-filter:blur(3px);display:flex;align-items:flex-start;justify-content:center;" +
+    "padding:max(28px,env(safe-area-inset-top)) 18px calc(28px + env(safe-area-inset-bottom));" +
+    "overflow-y:auto;font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif";
+
+  function pairTrigger() {
+    if (document.getElementById("kroven-pair-btn")) return;
+    if (!localStorage.getItem(TK)) return;
+    var b = document.createElement("button");
+    b.id = "kroven-pair-btn";
+    b.textContent = "+ Connect device";
+    b.style.cssText = "position:fixed;z-index:2147482000;left:50%;transform:translateX(-50%);" +
+      "bottom:calc(14px + env(safe-area-inset-bottom));padding:9px 16px;border-radius:999px;" +
+      "border:1px solid #2b3a5c;background:rgba(20,28,44,.94);color:#A9B8D0;font-size:12px;" +
+      "font-weight:600;cursor:pointer;backdrop-filter:blur(6px);" +
+      "font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif";
+    b.addEventListener("click", openPair);
+    document.body.appendChild(b);
+  }
+
+  function removePairTrigger() {
+    var b = document.getElementById("kroven-pair-btn");
+    if (b) b.remove();
+  }
+
+  function openPair() {
+    if (document.getElementById("kroven-pair")) return;
+    var wrap = document.createElement("div");
+    wrap.id = "kroven-pair";
+    wrap.style.cssText = PAIR_CSS;
+    wrap.innerHTML =
+      '<div style="width:100%;max-width:420px;margin:auto 0;background:#111827;border:1px solid #24304A;border-radius:16px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.5)">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">' +
+          '<span style="font-size:15px;font-weight:700;color:#E8EDF7">Connect a device</span>' +
+          '<button id="kp-x" aria-label="Close" style="border:0;background:transparent;color:#5C6B85;font-size:20px;line-height:1;cursor:pointer;padding:0 2px">&times;</button>' +
+        '</div>' +
+        '<div style="font-size:12.5px;color:#7D8CA6;line-height:1.55;margin-bottom:16px">' +
+          'Kroven connects to your own account. Your password is never shared &mdash; ' +
+          'the key you paste can be revoked from the app at any time.</div>' +
+        '<label style="display:block;font-size:11px;letter-spacing:.06em;color:#5C6B85;margin-bottom:6px">BRAND</label>' +
+        '<select id="kp-brand" style="width:100%;box-sizing:border-box;padding:12px 13px;border-radius:10px;border:1px solid #24304A;background:#141C2C;color:#E8EDF7;font-size:16px;margin-bottom:14px"></select>' +
+        '<div id="kp-brandcard" style="display:flex;align-items:center;gap:11px;padding:13px 14px;border-radius:11px;margin-bottom:16px;border:1px solid #24304A"></div>' +
+        '<div id="kp-fields"></div>' +
+        '<button id="kp-go" style="width:100%;margin-top:6px;padding:13px;border-radius:10px;border:0;background:#2F6BFF;color:#fff;font-size:14.5px;font-weight:600;cursor:pointer">Connect</button>' +
+        '<div id="kp-msg" role="alert" style="font-size:12.5px;min-height:20px;margin-top:11px;line-height:1.5;color:#FF6B6B"></div>' +
+      '</div>';
+    document.body.appendChild(wrap);
+    wrap.addEventListener("click", function (e) { if (e.target === wrap) wrap.remove(); });
+    document.getElementById("kp-x").addEventListener("click", function () { wrap.remove(); });
+
+    var sel = document.getElementById("kp-brand");
+    var card = document.getElementById("kp-brandcard");
+    var fields = document.getElementById("kp-fields");
+    var go = document.getElementById("kp-go");
+    var msg = document.getElementById("kp-msg");
+    var providers = [];
+
+    // Vendor look without shipping vendor artwork: brand colour and wordmark
+    // rather than a copied logo file.
+    var BRAND = {
+      shelly: { tint: "#00B4A0", glyph: "\u25A3", blurb: "Plugs, relays and sensors" },
+      kasa:   { tint: "#7C5CFF", glyph: "\u25A0", blurb: "TP-Link smart plugs" }
+    };
+
+    function paint() {
+      var p = providers.filter(function (x) { return x.id === sel.value; })[0];
+      if (!p) return;
+      var b = BRAND[p.id] || { tint: "#5C6B85", glyph: "\u25A1", blurb: "" };
+      card.style.background = "linear-gradient(135deg," + b.tint + "1f 0%, transparent 70%)";
+      card.style.borderColor = b.tint + "44";
+      card.innerHTML =
+        '<span style="width:34px;height:34px;border-radius:9px;display:flex;align-items:center;' +
+        'justify-content:center;background:' + b.tint + '26;color:' + b.tint + ';font-size:17px">' + b.glyph + '</span>' +
+        '<span><span style="display:block;font-size:14px;font-weight:700;color:#E8EDF7">' + p.name + '</span>' +
+        '<span style="display:block;font-size:11.5px;color:#7D8CA6">' + b.blurb + '</span></span>';
+
+      var unavailable = p.flow !== "auth_key";
+      go.style.display = unavailable ? "none" : "block";
+      fields.innerHTML = unavailable
+        ? '<div style="font-size:12.5px;color:#C8A24A;line-height:1.55;padding:11px 13px;' +
+          'background:#241F12;border:1px solid #3A3018;border-radius:10px">' + p.help + '</div>'
+        : '<div style="font-size:12px;color:#7D8CA6;line-height:1.55;margin-bottom:12px">' + p.help + '</div>' +
+          '<input id="kp-server" placeholder="Server address" autocomplete="off" ' +
+          'style="width:100%;box-sizing:border-box;padding:13px 14px;border-radius:10px;border:1px solid #24304A;' +
+          'background:#141C2C;color:#E8EDF7;font-size:16px;outline:none;margin-bottom:9px">' +
+          '<input id="kp-key" placeholder="Authorization cloud key" autocomplete="off" ' +
+          'style="width:100%;box-sizing:border-box;padding:13px 14px;border-radius:10px;border:1px solid #24304A;' +
+          'background:#141C2C;color:#E8EDF7;font-size:16px;outline:none">';
+      msg.textContent = "";
+    }
+
+    _fetch(API + "/api/pair/providers").then(function (r) { return r.json(); })
+      .then(function (d) {
+        providers = (d && d.providers) || [];
+        sel.innerHTML = providers.map(function (p) {
+          return '<option value="' + p.id + '">' + p.name +
+                 (p.flow !== "auth_key" ? " \u2014 not available yet" : "") + '</option>';
+        }).join("");
+        paint();
+      })
+      .catch(function () { msg.textContent = "Couldn't load the device list."; });
+
+    sel.addEventListener("change", paint);
+
+    go.addEventListener("click", function () {
+      var srvEl = document.getElementById("kp-server");
+      var keyEl = document.getElementById("kp-key");
+      var srv = srvEl ? srvEl.value : "";
+      var key = keyEl ? keyEl.value : "";
+      if (!srv.trim() || !key.trim()) {
+        msg.style.color = "#FF6B6B";
+        msg.textContent = "Paste both the server and the key.";
+        return;
+      }
+      go.disabled = true; go.textContent = "Connecting\u2026"; msg.textContent = "";
+      fetch(API + "/api/pair/pair", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: sel.value, server: srv.trim(), auth_key: key.trim(),
+                               household_id: localStorage.getItem(HH) })
+      }).then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d && d.ok) {
+            msg.style.color = "#5BD98A";
+            msg.textContent = d.detail + " Reloading\u2026";
+            setTimeout(function () { location.reload(); }, 900);
+            return;
+          }
+          msg.style.color = "#FF6B6B";
+          msg.textContent = (d && d.detail) || "Couldn't connect that account.";
+          go.disabled = false; go.textContent = "Connect";
+        })
+        .catch(function () {
+          msg.style.color = "#FF6B6B"; msg.textContent = "Couldn't reach Kroven.";
+          go.disabled = false; go.textContent = "Connect";
+        });
+    });
+  }
+
+  function syncPairUI() {
+    if (location.hash === "#console") pairTrigger(); else removePairTrigger();
+  }
+  window.addEventListener("hashchange", syncPairUI);
+
   go.addEventListener("click", submit);
   [email, pass].forEach(function (el) {
     el.addEventListener("keydown", function (ev) { if (ev.key === "Enter") submit(); });

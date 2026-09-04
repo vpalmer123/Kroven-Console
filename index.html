@@ -214,6 +214,79 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
     </style>
   </head>
   <body style="margin:0;background:#0E1420">
+<!-- Private preview gate. A classic script here runs while the document is
+     parsing, before the deferred module bundle in <head>, so the app starts
+     with the household id this grants and never sees an ungated visitor.
+     The code is verified by the server, not here: this page holds no secret,
+     because anything it held would be readable in view-source. -->
+<div id="kroven-gate" style="position:fixed;inset:0;z-index:2147483647;background:#0E1420;display:flex;align-items:center;justify-content:center;font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;padding:24px">
+  <div style="width:100%;max-width:380px;text-align:center">
+    <div style="font-size:26px;letter-spacing:.14em;color:#E8EDF7;font-weight:600">KROVEN</div>
+    <div style="font-size:11px;letter-spacing:.28em;color:#5C6B85;margin-top:6px">PRIVATE PREVIEW</div>
+    <p id="kroven-gate-msg" style="color:#8494AD;font-size:13.5px;line-height:1.55;margin:26px 0 20px">
+      Enter your access code to continue.
+    </p>
+    <input id="kroven-gate-input" type="password" inputmode="text" autocomplete="off"
+           placeholder="Access code" aria-label="Access code"
+           style="width:100%;box-sizing:border-box;padding:13px 15px;border-radius:10px;border:1px solid #24304A;background:#141C2C;color:#E8EDF7;font-size:15px;outline:none;text-align:center;letter-spacing:.06em">
+    <button id="kroven-gate-go"
+            style="width:100%;margin-top:11px;padding:13px;border-radius:10px;border:0;background:#2F6BFF;color:#fff;font-size:14.5px;font-weight:600;cursor:pointer">
+      Continue
+    </button>
+    <div id="kroven-gate-err" role="alert" style="color:#FF6B6B;font-size:12.5px;min-height:17px;margin-top:11px"></div>
+  </div>
+</div>
+<script>
+(function () {
+  var API = "https://kroven-console-production.up.railway.app";
+  var KEY = "kroven_household_id", GRANT = "kroven_access_granted";
+  var gate = document.getElementById("kroven-gate");
+  function open_() { gate.parentNode && gate.parentNode.removeChild(gate); }
+
+  // Already let in on this browser, or the server has no code configured.
+  if (localStorage.getItem(GRANT) === "1" && localStorage.getItem(KEY)) { open_(); return; }
+
+  fetch(API + "/api/access/enabled").then(function (r) { return r.json(); })
+    .then(function (d) { if (!d || !d.enabled) open_(); })
+    .catch(function () { open_(); });   // server unreachable: never lock the owner out
+
+  var input = document.getElementById("kroven-gate-input");
+  var btn = document.getElementById("kroven-gate-go");
+  var err = document.getElementById("kroven-gate-err");
+
+  function submit() {
+    var code = (input.value || "").trim();
+    if (!code) { err.textContent = "Enter the code you were given."; return; }
+    btn.disabled = true; btn.textContent = "Checking…"; err.textContent = "";
+    fetch(API + "/api/access", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: code })
+    }).then(function (r) { return r.json().then(function (d) { return { s: r.status, d: d }; }); })
+      .then(function (res) {
+        if (res.s === 200 && res.d && res.d.household_id) {
+          // The app reads this on startup, so setting it here is what actually
+          // grants access - the chat endpoint only answers allowlisted ids.
+          localStorage.setItem(KEY, res.d.household_id);
+          localStorage.setItem(GRANT, "1");
+          location.reload();
+          return;
+        }
+        err.textContent = (res.d && res.d.detail) || "That code isn't right.";
+        btn.disabled = false; btn.textContent = "Continue"; input.select();
+      })
+      .catch(function () {
+        err.textContent = "Couldn't reach Kroven. Check your connection.";
+        btn.disabled = false; btn.textContent = "Continue";
+      });
+  }
+
+  btn.addEventListener("click", submit);
+  input.addEventListener("keydown", function (e) { if (e.key === "Enter") submit(); });
+  setTimeout(function () { input.focus(); }, 60);
+})();
+</script>
+
     <div id="root"></div>
     <button id="kroven-data-toggle" aria-label="Add your usage data"><span class="kd-icon" aria-hidden="true">+</span><span class="kd-text">Your data</span></button>
     <div id="kroven-data-panel" style="display:none;position:fixed;bottom:16px;left:16px;z-index:9999;font-family:monospace;background:#0B0F19;border:1px solid #1C2333;border-radius:8px;padding:10px;width:280px;max-width:calc(100vw - 32px);box-shadow:0 4px 18px rgba(0,0,0,.4);">

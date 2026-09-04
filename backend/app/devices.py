@@ -265,11 +265,25 @@ def build_adapter(kind: str, host: str, channel: int = 0, label: str = "plug",
         server = meta.get("cloud_server") or os.environ.get("SHELLY_CLOUD_SERVER", "").strip()
         auth_key = meta.get("cloud_auth_key") or os.environ.get("SHELLY_CLOUD_AUTH_KEY", "").strip()
         device_id = meta.get("cloud_device_id") or os.environ.get("SHELLY_DEVICE_ID", "").strip()
-        # Prefer LAN when we have an address: it is faster and keeps working
-        # when the cloud is down. Cloud is the fallback for off-network hosts.
+        # Cloud wins when it is configured, even though LAN is faster.
+        #
+        # The deployed backend runs on Railway and the plug lives on a home
+        # LAN, so a private address is simply unreachable from there — the
+        # request times out and actuation fails, while working perfectly when
+        # the same code runs on a laptop at home. Preferring LAN meant
+        # configuring cloud credentials changed nothing, because the host was
+        # always set and always won.
+        #
+        # Set SHELLY_PREFER_LOCAL=1 to invert this on a machine that really is
+        # on the same network and wants the lower latency.
+        prefer_local = os.environ.get("SHELLY_PREFER_LOCAL", "").strip().lower() in ("1", "true", "yes")
+        has_cloud = bool(server and auth_key and device_id)
+
+        if has_cloud and not prefer_local:
+            return ShellyCloudAdapter(server, auth_key, device_id, channel, label)
         if host:
             return ShellyLocalAdapter(_as_url(host), channel, label)
-        if server and auth_key and device_id:
+        if has_cloud:
             return ShellyCloudAdapter(server, auth_key, device_id, channel, label)
         raise DeviceError(f"No address or cloud credentials configured for '{label}'.")
 

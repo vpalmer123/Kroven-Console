@@ -18,7 +18,12 @@
 
 create table if not exists devices (
     id                uuid primary key default gen_random_uuid(),
-    household_id      uuid not null,
+    -- text, not uuid, because every other table stores household_id as text
+    -- and so does households.household_id. Declaring it uuid here made the
+    -- ownership policy in 008 compare uuid against text, which Postgres
+    -- refuses outright (42883) — it failed the migration halfway. Corrected
+    -- retroactively by 009; kept text here so a fresh deploy is consistent.
+    household_id      text not null,
 
     -- What the person calls it out loud. Fuzzy-matched against speech, so it
     -- should be their word ("PS5"), not a model number.

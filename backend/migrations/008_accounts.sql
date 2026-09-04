@@ -15,6 +15,12 @@
 -- table. That way an existing household keeps its id when it gains an owner,
 -- so the 1800 readings already collected stay attached to Victor's account
 -- instead of needing to be rewritten.
+--
+-- SUPERSEDED IN PART BY 009. As written this failed on `devices`, whose
+-- household_id was uuid while every other table's is text, so the ownership
+-- subquery compared uuid against text (42883) and stopped halfway. 009
+-- normalises the column and recreates every policy with an explicit cast.
+-- Run 009 after this; it is idempotent and safe on a half-applied schema.
 
 create table if not exists public.households (
     household_id  text primary key,

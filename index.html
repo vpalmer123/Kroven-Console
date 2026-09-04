@@ -968,6 +968,64 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
       removeDevPanel(); removeWeatherBand();
     }
   }
+  // ---- Back/forward cache ------------------------------------------------
+  // Returning via the back button does not re-run this script. The browser
+  // restores a snapshot of the page — DOM, JS state and all — so a page
+  // captured while signed in comes back looking signed in, even though
+  // sign-out has since emptied localStorage. The gate below only ever runs on
+  // a real load, so nothing re-checks.
+  //
+  // pageshow with persisted === true is the one signal that this happened.
+  //
+  // It is also where the sluggishness comes from: on restore the polling
+  // intervals all resume at once and every one of them fires immediately,
+  // including a device refresh that reaches out to Shelly Cloud per device.
+  // Reloading when the session is gone, and deferring the refresh when it is
+  // not, avoids both.
+  window.addEventListener("pageshow", function (e) {
+    if (!e.persisted) return;              // ordinary load; the IIFE just ran
+
+    var tok = localStorage.getItem(TK);
+    if (!tok) {
+      // Signed out while this page sat in the cache. The snapshot is showing
+      // authenticated content that is no longer authorised, so replace it
+      // rather than trying to unpick the DOM.
+      location.reload();
+      return;
+    }
+
+    // Session still looks present locally, but it may have expired or been
+    // revoked elsewhere while the page was frozen. Confirm before trusting
+    // the restored view.
+    _fetch(API + "/api/auth/me", { headers: { Authorization: "Bearer " + tok } })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.signed_in) {
+          // Genuinely still signed in: just bring the panels back in line with
+          // the current tab, on the next frame so the restore paints first.
+          setTimeout(syncPairUI, 0);
+          return;
+        }
+        // Token is dead. Try a silent renew before making them sign in again.
+        var rt = localStorage.getItem(RT);
+        if (!rt) { location.reload(); return; }
+        _fetch(API + "/api/auth/refresh", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh_token: rt })
+        }).then(function (r) { return r.json(); })
+          .then(function (n) {
+            if (n && n.ok && n.access_token) { save(n); setTimeout(syncPairUI, 0); }
+            else { location.reload(); }
+          })
+          .catch(function () { location.reload(); });
+      })
+      .catch(function () {
+        // Cannot verify. A restored snapshot is not evidence of a live
+        // session, so reload and let the normal gate decide.
+        location.reload();
+      });
+  });
+
   window.addEventListener("hashchange", syncPairUI);
   setInterval(syncPairUI, 800);
   // Keep live draw current while the panel is open, without hammering the API.

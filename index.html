@@ -398,180 +398,175 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
   }
 
   // ---- Connect a device -------------------------------------------------
-  // Lives on the console tab, which the app identifies by location.hash, so
-  // this watches the same signal rather than reaching into a prebuilt React
-  // tree it cannot safely touch.
+  // A docked sector on the console tab, not a button that hides a dialog: the
+  // point is that an unpaired user sees the brand and the field without
+  // hunting for them. The console identifies itself by location.hash, which is
+  // the same signal the app uses, so this appears and disappears with the tab.
   //
-  // The form is a modal rather than a docked section for one practical
-  // reason: the header band and both bottom corners are already occupied by
-  // the console's own controls, so anything docked collides at some width.
-  var PAIR_CSS = "position:fixed;inset:0;z-index:2147482000;background:rgba(6,10,18,.72);" +
-    "backdrop-filter:blur(3px);display:flex;align-items:flex-start;justify-content:center;" +
-    "padding:max(28px,env(safe-area-inset-top)) 18px calc(28px + env(safe-area-inset-bottom));" +
-    "overflow-y:auto;font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif";
+  // Fixed-positioned rather than inserted into the view, because the console is
+  // a prebuilt React tree that cannot take structural edits safely.
+  var BRAND = {
+    shelly: {
+      tint: "#4FC3B0",
+      blurb: "Plugs, relays and sensors",
+      help: "Shelly app \u2192 Settings \u2192 Authorization cloud key \u2192 Get key",
+      mark: '<svg width="74" height="20" viewBox="0 0 74 20" role="img" aria-label="Shelly">' +
+            '<text x="0" y="16" font-family="Inter,Segoe UI,Helvetica,Arial,sans-serif" ' +
+            'font-size="18" font-weight="700" letter-spacing="-0.5" fill="#4FC3B0">Shelly</text></svg>',
+      icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4FC3B0" ' +
+            'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' +
+            '<rect x="4" y="3" width="16" height="18" rx="3"/><path d="M9 8v3M15 8v3"/>' +
+            '<path d="M8 14h8"/></svg>'
+    },
+    kasa: {
+      tint: "#8E7CFF",
+      blurb: "TP-Link smart plugs",
+      help: "Not connectable yet \u2014 newer Kasa firmware uses an encryption scheme no open library can speak.",
+      mark: '<svg width="62" height="20" viewBox="0 0 62 20" role="img" aria-label="Kasa">' +
+            '<text x="0" y="16" font-family="Inter,Segoe UI,Helvetica,Arial,sans-serif" ' +
+            'font-size="18" font-weight="700" letter-spacing="-0.3" fill="#8E7CFF">Kasa</text></svg>',
+      icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8E7CFF" ' +
+            'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' +
+            '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2.5"/></svg>'
+    }
+  };
 
-  function pairTrigger() {
-    if (document.getElementById("kroven-pair-btn")) return;
-    if (!localStorage.getItem(TK)) return;
-    var b = document.createElement("button");
-    b.id = "kroven-pair-btn";
-    b.textContent = "+ Connect device";
-    b.style.cssText = "position:fixed;z-index:2147482000;left:50%;transform:translateX(-50%);" +
-      "bottom:calc(14px + env(safe-area-inset-bottom));padding:9px 16px;border-radius:999px;" +
-      "border:1px solid #2b3a5c;background:rgba(20,28,44,.94);color:#A9B8D0;font-size:12px;" +
-      "font-weight:600;cursor:pointer;backdrop-filter:blur(6px);" +
-      "font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif";
-    b.addEventListener("click", openPair);
-    document.body.appendChild(b);
-  }
+  var pairBrand = "shelly";
 
-  function removePairTrigger() {
-    var b = document.getElementById("kroven-pair-btn");
-    if (b) b.remove();
-  }
-
-  function openPair() {
+  function buildPairPanel() {
     if (document.getElementById("kroven-pair")) return;
+    if (!localStorage.getItem(TK)) return;
+
     var wrap = document.createElement("div");
     wrap.id = "kroven-pair";
-    wrap.style.cssText = PAIR_CSS;
+    wrap.style.cssText =
+      "position:fixed;z-index:2147481000;left:50%;transform:translateX(-50%);" +
+      "bottom:calc(14px + env(safe-area-inset-bottom));" +
+      "width:min(620px, calc(100vw - 24px));box-sizing:border-box;" +
+      "background:#0F1724;border:1px solid #24304A;border-radius:14px;" +
+      "box-shadow:0 14px 44px rgba(0,0,0,.45);overflow:hidden;" +
+      "font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif";
     wrap.innerHTML =
-      '<div style="width:100%;max-width:420px;margin:auto 0;background:#111827;border:1px solid #24304A;border-radius:16px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.5)">' +
-        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">' +
-          '<span style="font-size:15px;font-weight:700;color:#E8EDF7">Connect a device</span>' +
-          '<button id="kp-x" aria-label="Close" style="border:0;background:transparent;color:#5C6B85;font-size:20px;line-height:1;cursor:pointer;padding:0 2px">&times;</button>' +
-        '</div>' +
-        '<div style="font-size:12.5px;color:#7D8CA6;line-height:1.55;margin-bottom:16px">' +
-          'Kroven connects to your own account. Your password is never shared &mdash; ' +
-          'the key you paste can be revoked from the app at any time.</div>' +
-        '<label style="display:block;font-size:11px;letter-spacing:.06em;color:#5C6B85;margin-bottom:6px">BRAND</label>' +
-        '<select id="kp-brand" style="width:100%;box-sizing:border-box;padding:12px 13px;border-radius:10px;border:1px solid #24304A;background:#141C2C;color:#E8EDF7;font-size:16px;margin-bottom:14px"></select>' +
-        '<div id="kp-brandcard" style="display:flex;align-items:center;gap:11px;padding:13px 14px;border-radius:11px;margin-bottom:16px;border:1px solid #24304A"></div>' +
+      '<div id="kp-head" style="display:flex;align-items:center;gap:11px;padding:13px 15px;cursor:pointer">' +
+        '<span id="kp-icon" style="width:34px;height:34px;border-radius:9px;display:flex;' +
+        'align-items:center;justify-content:center;flex:0 0 auto"></span>' +
+        '<span style="min-width:0;flex:1">' +
+          '<span id="kp-mark" style="display:block;line-height:1"></span>' +
+          '<span id="kp-blurb" style="display:block;font-size:11.5px;color:#8494AD;margin-top:3px"></span>' +
+        '</span>' +
+        '<span id="kp-chev" style="color:#5C6B85;font-size:13px;flex:0 0 auto">\u25BE</span>' +
+      '</div>' +
+      '<div id="kp-body" style="padding:0 15px 15px">' +
+        '<select id="kp-brand" style="width:100%;box-sizing:border-box;padding:11px 12px;' +
+        'border-radius:9px;border:1px solid #24304A;background:#141C2C;color:#E8EDF7;' +
+        'font-size:16px;margin-bottom:10px"></select>' +
+        '<div id="kp-help" style="font-size:11.5px;color:#7D8CA6;line-height:1.5;margin-bottom:10px"></div>' +
         '<div id="kp-fields"></div>' +
-        '<button id="kp-go" style="width:100%;margin-top:6px;padding:13px;border-radius:10px;border:0;background:#2F6BFF;color:#fff;font-size:14.5px;font-weight:600;cursor:pointer">Connect</button>' +
-        '<div id="kp-msg" role="alert" style="font-size:12.5px;min-height:20px;margin-top:11px;line-height:1.5;color:#FF6B6B"></div>' +
+        '<button id="kp-go" style="width:100%;margin-top:9px;padding:12px;border-radius:9px;' +
+        'border:0;background:#2F6BFF;color:#fff;font-size:14px;font-weight:600;cursor:pointer">Connect</button>' +
+        '<div id="kp-msg" role="alert" style="font-size:12px;min-height:17px;margin-top:9px;' +
+        'line-height:1.45;color:#FF6B6B"></div>' +
       '</div>';
     document.body.appendChild(wrap);
-    wrap.addEventListener("click", function (e) { if (e.target === wrap) wrap.remove(); });
-    document.getElementById("kp-x").addEventListener("click", function () { wrap.remove(); });
 
+    var head = document.getElementById("kp-head");
+    var body = document.getElementById("kp-body");
+    var chev = document.getElementById("kp-chev");
     var sel = document.getElementById("kp-brand");
-    var card = document.getElementById("kp-brandcard");
-    var fields = document.getElementById("kp-fields");
-    var go = document.getElementById("kp-go");
-    var msg = document.getElementById("kp-msg");
-    var providers = [];
+    var open = localStorage.getItem("kroven_pair_open") !== "0";
 
-    // Wordmarks are set in type rather than drawn. Shelly publish no logo file
-    // we can fetch — every candidate URL 404s — and approximating a mark by
-    // hand misrepresents it more than setting the name properly does. The
-    // brand colour and a device silhouette carry the recognition.
-    var BRAND = {
-      shelly: {
-        tint: "#4FC3B0", ink: "#0E1420",
-        blurb: "Plugs, relays and sensors",
-        mark: '<svg width="82" height="22" viewBox="0 0 82 22" role="img" aria-label="Shelly">' +
-              '<text x="0" y="17" font-family="Inter,Segoe UI,Helvetica,Arial,sans-serif" ' +
-              'font-size="19" font-weight="700" letter-spacing="-0.6" fill="#4FC3B0">Shelly</text></svg>',
-        icon: '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#4FC3B0" ' +
-              'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' +
-              '<rect x="4" y="3" width="16" height="18" rx="3"/><path d="M9 8v3M15 8v3"/>' +
-              '<path d="M8 14h8"/></svg>'
-      },
-      kasa: {
-        tint: "#8E7CFF", ink: "#0E1420",
-        blurb: "TP-Link smart plugs",
-        mark: '<svg width="78" height="22" viewBox="0 0 78 22" role="img" aria-label="Kasa">' +
-              '<text x="0" y="17" font-family="Inter,Segoe UI,Helvetica,Arial,sans-serif" ' +
-              'font-size="19" font-weight="700" letter-spacing="-0.4" fill="#8E7CFF">Kasa</text></svg>',
-        icon: '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#8E7CFF" ' +
-              'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' +
-              '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2.5"/></svg>'
-      }
-    };
-
-    function paint() {
-      var p = providers.filter(function (x) { return x.id === sel.value; })[0];
-      if (!p) return;
-      var b = BRAND[p.id] || { tint: "#5C6B85", blurb: "", mark: "", icon: "" };
-      card.style.background = "linear-gradient(135deg," + b.tint + "24 0%, " + b.tint + "08 45%, transparent 78%)";
-      card.style.borderColor = b.tint + "55";
-      card.style.padding = "15px 16px";
-      card.innerHTML =
-        '<span style="width:40px;height:40px;border-radius:11px;display:flex;align-items:center;' +
-        'justify-content:center;background:' + b.tint + '1f;border:1px solid ' + b.tint + '3d;flex:0 0 auto">' +
-        b.icon + '</span>' +
-        '<span style="min-width:0">' +
-          '<span style="display:block;line-height:1">' + b.mark + '</span>' +
-          '<span style="display:block;font-size:11.5px;color:#8494AD;margin-top:3px">' + b.blurb + '</span>' +
-        '</span>';
-
-      var unavailable = p.flow !== "auth_key";
-      go.style.display = unavailable ? "none" : "block";
-      fields.innerHTML = unavailable
-        ? '<div style="font-size:12.5px;color:#C8A24A;line-height:1.55;padding:11px 13px;' +
-          'background:#241F12;border:1px solid #3A3018;border-radius:10px">' + p.help + '</div>'
-        : '<div style="font-size:12px;color:#7D8CA6;line-height:1.55;margin-bottom:12px">' + p.help + '</div>' +
-          '<input id="kp-server" placeholder="Server address" autocomplete="off" ' +
-          'style="width:100%;box-sizing:border-box;padding:13px 14px;border-radius:10px;border:1px solid #24304A;' +
-          'background:#141C2C;color:#E8EDF7;font-size:16px;outline:none;margin-bottom:9px">' +
-          '<input id="kp-key" placeholder="Authorization cloud key" autocomplete="off" ' +
-          'style="width:100%;box-sizing:border-box;padding:13px 14px;border-radius:10px;border:1px solid #24304A;' +
-          'background:#141C2C;color:#E8EDF7;font-size:16px;outline:none">';
-      msg.textContent = "";
+    function setOpen(v) {
+      open = v;
+      body.style.display = v ? "block" : "none";
+      chev.textContent = v ? "\u25BE" : "\u25B4";
+      localStorage.setItem("kroven_pair_open", v ? "1" : "0");
     }
+    head.addEventListener("click", function () { setOpen(!open); });
+    setOpen(open);
 
-    _fetch(API + "/api/pair/providers").then(function (r) { return r.json(); })
+    sel.innerHTML =
+      '<option value="shelly">Shelly</option>' +
+      '<option value="kasa">TP-Link Kasa \u2014 not available yet</option>';
+    sel.value = pairBrand;
+    sel.addEventListener("change", function () { pairBrand = sel.value; paintPair(); });
+    document.getElementById("kp-go").addEventListener("click", submitPair);
+    paintPair();
+  }
+
+  function paintPair() {
+    var b = BRAND[pairBrand];
+    var wrap = document.getElementById("kroven-pair");
+    if (!wrap || !b) return;
+    wrap.style.background = "linear-gradient(160deg," + b.tint + "1a 0%, #0F1724 42%)";
+    wrap.style.borderColor = b.tint + "4d";
+    document.getElementById("kp-icon").style.background = b.tint + "1f";
+    document.getElementById("kp-icon").style.border = "1px solid " + b.tint + "3d";
+    document.getElementById("kp-icon").innerHTML = b.icon;
+    document.getElementById("kp-mark").innerHTML = b.mark;
+    document.getElementById("kp-blurb").textContent = b.blurb;
+    document.getElementById("kp-help").textContent = b.help;
+
+    var usable = pairBrand === "shelly";
+    document.getElementById("kp-go").style.display = usable ? "block" : "none";
+    document.getElementById("kp-fields").innerHTML = usable
+      ? '<input id="kp-server" placeholder="Server address (e.g. shelly-287-eu.shelly.cloud)" ' +
+        'autocomplete="off" style="width:100%;box-sizing:border-box;padding:12px 13px;' +
+        'border-radius:9px;border:1px solid #24304A;background:#141C2C;color:#E8EDF7;' +
+        'font-size:16px;outline:none;margin-bottom:8px">' +
+        '<input id="kp-key" placeholder="Authorization cloud key" autocomplete="off" ' +
+        'style="width:100%;box-sizing:border-box;padding:12px 13px;border-radius:9px;' +
+        'border:1px solid #24304A;background:#141C2C;color:#E8EDF7;font-size:16px;outline:none">'
+      : "";
+    document.getElementById("kp-msg").textContent = "";
+  }
+
+  function submitPair() {
+    var msg = document.getElementById("kp-msg");
+    var go = document.getElementById("kp-go");
+    var srvEl = document.getElementById("kp-server");
+    var keyEl = document.getElementById("kp-key");
+    var srv = srvEl ? srvEl.value.trim() : "";
+    var key = keyEl ? keyEl.value.trim() : "";
+    if (!srv || !key) {
+      msg.style.color = "#FF6B6B";
+      msg.textContent = "Paste both the server and the key.";
+      return;
+    }
+    go.disabled = true; go.textContent = "Connecting\u2026"; msg.textContent = "";
+    fetch(API + "/api/pair/pair", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: pairBrand, server: srv, auth_key: key,
+                             household_id: localStorage.getItem(HH) })
+    }).then(function (r) { return r.json(); })
       .then(function (d) {
-        providers = (d && d.providers) || [];
-        sel.innerHTML = providers.map(function (p) {
-          return '<option value="' + p.id + '">' + p.name +
-                 (p.flow !== "auth_key" ? " \u2014 not available yet" : "") + '</option>';
-        }).join("");
-        paint();
-      })
-      .catch(function () { msg.textContent = "Couldn't load the device list."; });
-
-    sel.addEventListener("change", paint);
-
-    go.addEventListener("click", function () {
-      var srvEl = document.getElementById("kp-server");
-      var keyEl = document.getElementById("kp-key");
-      var srv = srvEl ? srvEl.value : "";
-      var key = keyEl ? keyEl.value : "";
-      if (!srv.trim() || !key.trim()) {
+        if (d && d.ok) {
+          msg.style.color = "#5BD98A";
+          msg.textContent = d.detail + " Reloading\u2026";
+          setTimeout(function () { location.reload(); }, 900);
+          return;
+        }
         msg.style.color = "#FF6B6B";
-        msg.textContent = "Paste both the server and the key.";
-        return;
-      }
-      go.disabled = true; go.textContent = "Connecting\u2026"; msg.textContent = "";
-      fetch(API + "/api/pair/pair", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider: sel.value, server: srv.trim(), auth_key: key.trim(),
-                               household_id: localStorage.getItem(HH) })
-      }).then(function (r) { return r.json(); })
-        .then(function (d) {
-          if (d && d.ok) {
-            msg.style.color = "#5BD98A";
-            msg.textContent = d.detail + " Reloading\u2026";
-            setTimeout(function () { location.reload(); }, 900);
-            return;
-          }
-          msg.style.color = "#FF6B6B";
-          msg.textContent = (d && d.detail) || "Couldn't connect that account.";
-          go.disabled = false; go.textContent = "Connect";
-        })
-        .catch(function () {
-          msg.style.color = "#FF6B6B"; msg.textContent = "Couldn't reach Kroven.";
-          go.disabled = false; go.textContent = "Connect";
-        });
-    });
+        msg.textContent = (d && d.detail) || "Couldn't connect that account.";
+        go.disabled = false; go.textContent = "Connect";
+      })
+      .catch(function () {
+        msg.style.color = "#FF6B6B"; msg.textContent = "Couldn't reach Kroven.";
+        go.disabled = false; go.textContent = "Connect";
+      });
+  }
+
+  function removePairPanel() {
+    var el = document.getElementById("kroven-pair");
+    if (el) el.remove();
   }
 
   function syncPairUI() {
-    if (location.hash === "#console") pairTrigger(); else removePairTrigger();
+    if (location.hash === "#console") buildPairPanel(); else removePairPanel();
   }
   window.addEventListener("hashchange", syncPairUI);
+  // The tab can also be switched without the hash event firing in some flows,
+  // so the view is re-checked on a light interval rather than assumed.
+  setInterval(syncPairUI, 800);
 
   go.addEventListener("click", submit);
   [email, pass].forEach(function (el) {

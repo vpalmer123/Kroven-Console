@@ -5,3 +5,20 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
+
+# The whole app is one index.html, so caching it means a deploy is invisible to
+# anyone who has already opened the site — they keep running the old build with
+# no way to tell. That is how a fixed bug can keep being reported: the fix
+# shipped, the browser never fetched it.
+#
+# The page is small and everything expensive it loads is inline, so revalidating
+# it on every visit costs little and removes an entire class of confusion.
+[[headers]]
+  for = "/"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"

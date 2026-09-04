@@ -502,17 +502,22 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
             'Nothing connected yet. Add a device below.</div>';
           return;
         }
+        window.__kdDevs = devs;
         list.innerHTML = devs.map(function (v) {
           var r = readLoad(v);
           var on = v.state === "on";
           var canSwitch = v.controllable && v.online;
+          var shedOn = !!(v.auto_shed && v.auto_shed.enabled);
+          var sub = [v.kind, v.signal_type].filter(Boolean).join(" \u00b7 ");
+          if (v.model) sub += " \u00b7 " + v.model;
           return '<div style="padding:11px 13px;border-bottom:1px solid #151D2C">' +
             '<div style="display:flex;align-items:center;gap:9px">' +
               '<span style="flex:1;min-width:0">' +
                 '<span style="display:block;font-size:13px;font-weight:600;color:#E8EDF7;' +
-                'overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + v.name + '</span>' +
-                '<span style="display:block;font-size:10.5px;color:#5C6B85;margin-top:1px">' +
-                  v.kind + ' \u00b7 ' + (v.signal_type || '') + '</span>' +
+                'overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + v.name +
+                (v.appliance ? ' <span style="font-weight:400;color:#7D8CA6">\u2014 ' + v.appliance + '</span>' : '') +
+                '</span>' +
+                '<span style="display:block;font-size:10.5px;color:#5C6B85;margin-top:1px">' + sub + '</span>' +
               '</span>' +
               (canSwitch
                 ? '<button data-dev="' + v.id + '" data-act="' + (on ? "off" : "on") + '" ' +
@@ -525,8 +530,57 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
             '</div>' +
             '<div style="font-size:11px;color:' + r.tone + ';margin-top:6px;line-height:1.45">' +
               r.text + '</div>' +
+            // The override sits on the row, not behind a menu: if Kroven cut
+            // power to something you needed, finding the undo must not be a
+            // navigation exercise. Wording is "restore power", never "turn on".
+            (!on && canSwitch
+              ? '<button data-restore="' + v.id + '" class="kd-restore" ' +
+                'style="width:100%;margin-top:9px;padding:9px;border-radius:8px;border:1px solid #2F6BFF;' +
+                'background:rgba(47,107,255,.12);color:#8FB3FF;font-size:11.5px;font-weight:700;' +
+                'cursor:pointer;font-family:inherit">RESTORE POWER</button>'
+              : '') +
+            (canSwitch
+              ? '<label style="display:flex;align-items:center;gap:8px;margin-top:9px;cursor:pointer">' +
+                  '<input type="checkbox" class="kd-shed" data-dev="' + v.id + '"' +
+                  (shedOn ? ' checked' : '') + ' style="width:14px;height:14px;cursor:pointer;flex:0 0 auto">' +
+                  '<span style="font-size:10.5px;color:' + (shedOn ? "#E8B44F" : "#5C6B85") + ';line-height:1.4">' +
+                    (shedOn
+                      ? "Kroven may cut power automatically when idle"
+                      : "Let Kroven cut power automatically when idle") +
+                  '</span>' +
+                '</label>'
+              : '') +
           '</div>';
         }).join("");
+
+        [].forEach.call(list.querySelectorAll(".kd-restore"), function (b) {
+          b.addEventListener("click", function () {
+            var id = b.getAttribute("data-restore");
+            var dev = (window.__kdDevs || []).filter(function (x) { return x.id === id; })[0];
+            if (dev) restorePower(dev, b);
+          });
+        });
+
+        [].forEach.call(list.querySelectorAll(".kd-shed"), function (cb) {
+          cb.addEventListener("click", function (e) {
+            var id = cb.getAttribute("data-dev");
+            var dev = (window.__kdDevs || []).filter(function (x) { return x.id === id; })[0];
+            if (!dev) return;
+            if (cb.checked) {
+              // Never enable straight from the tick: the consent modal is the
+              // only way in, and cancelling must leave it off.
+              e.preventDefault();
+              cb.checked = false;
+              askShedConsent(dev, function (done) {
+                setAutoShed(dev, true, done);
+              });
+            } else {
+              // Turning it off asks nothing. Withdrawing permission is always
+              // easier than granting it.
+              setAutoShed(dev, false, function () {});
+            }
+          });
+        });
 
         [].forEach.call(list.querySelectorAll(".kd-toggle"), function (b) {
           b.addEventListener("click", function () {
@@ -618,6 +672,101 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
         msg.style.color = "#FF6B6B"; msg.textContent = "Couldn't reach Kroven.";
         go.disabled = false; go.textContent = "Connect";
       });
+  }
+
+  // ---- Automatic load shedding ------------------------------------------
+  // Must match app.automation.CONSENT_VERSION. The server refuses consent
+  // carrying a different version, so changing the wording below without
+  // changing this is caught rather than silently accepted.
+  var CONSENT_VERSION = "2026-09-04.1";
+
+  function askShedConsent(dev, onGranted) {
+    if (document.getElementById("kroven-consent")) return;
+    var m = document.createElement("div");
+    m.id = "kroven-consent";
+    m.style.cssText =
+      "position:fixed;inset:0;z-index:2147483600;background:rgba(6,10,18,.8);" +
+      "backdrop-filter:blur(4px);display:flex;align-items:flex-start;justify-content:center;" +
+      "padding:max(28px,env(safe-area-inset-top)) 18px calc(28px + env(safe-area-inset-bottom));" +
+      "overflow-y:auto;font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif";
+    m.innerHTML =
+      '<div style="width:100%;max-width:440px;margin:auto 0;background:#111827;' +
+      'border:1px solid #3A2A1A;border-radius:16px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.55)">' +
+        '<div style="font-size:16px;font-weight:700;color:#E8EDF7;line-height:1.35;margin-bottom:12px">' +
+          'Let Kroven cut power to ' + dev.name + ' automatically?</div>' +
+        '<div style="font-size:13px;color:#A9B8D0;line-height:1.6;margin-bottom:16px">' +
+          'Kroven will turn this off on its own when the conditions you set are met, ' +
+          'and restore power later. This is a real power cut, not a soft shutdown \u2014 ' +
+          'if the device is mid-task when it happens, that task can be interrupted, ' +
+          'and some electronics don\u2019t handle sudden power loss well. Kroven checks ' +
+          'that the device looks idle first, but it isn\u2019t foolproof.</div>' +
+        '<label for="kc-ack" style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;' +
+        'padding:12px 13px;border:1px solid #24304A;border-radius:10px;background:#141C2C;margin-bottom:16px">' +
+          '<input type="checkbox" id="kc-ack" style="margin-top:2px;width:16px;height:16px;flex:0 0 auto;cursor:pointer">' +
+          '<span style="font-size:12.5px;color:#C8D4E6;line-height:1.5">' +
+            'I understand this device will be powered off automatically, and I accept the risk</span>' +
+        '</label>' +
+        '<div style="display:flex;gap:9px">' +
+          '<button id="kc-cancel" style="flex:1;padding:12px;border-radius:10px;border:1px solid #2b3a5c;' +
+          'background:transparent;color:#A9B8D0;font-size:14px;font-weight:600;cursor:pointer;' +
+          'font-family:inherit">Cancel</button>' +
+          '<button id="kc-ok" disabled style="flex:1;padding:12px;border-radius:10px;border:0;' +
+          'background:#2b3a5c;color:#7D8CA6;font-size:14px;font-weight:600;cursor:not-allowed;' +
+          'font-family:inherit">Enable</button>' +
+        '</div>' +
+        '<div id="kc-msg" role="alert" style="font-size:12px;color:#FF6B6B;min-height:16px;margin-top:10px"></div>' +
+      '</div>';
+    document.body.appendChild(m);
+
+    var ack = document.getElementById("kc-ack");
+    var ok = document.getElementById("kc-ok");
+    // Enable stays inert until the box is ticked. Not styling — the button
+    // carries the disabled attribute, so keyboard and screen readers agree.
+    ack.addEventListener("change", function () {
+      ok.disabled = !ack.checked;
+      ok.style.background = ack.checked ? "#C8791E" : "#2b3a5c";
+      ok.style.color = ack.checked ? "#fff" : "#7D8CA6";
+      ok.style.cursor = ack.checked ? "pointer" : "not-allowed";
+    });
+    document.getElementById("kc-cancel").addEventListener("click", function () { m.remove(); });
+    m.addEventListener("click", function (e) { if (e.target === m) m.remove(); });
+    ok.addEventListener("click", function () {
+      if (!ack.checked) return;
+      ok.disabled = true; ok.textContent = "\u2026";
+      onGranted(function (err) {
+        if (err) {
+          document.getElementById("kc-msg").textContent = err;
+          ok.disabled = false; ok.textContent = "Enable";
+          return;
+        }
+        m.remove();
+      });
+    });
+  }
+
+  function setAutoShed(dev, enable, done) {
+    var hh = localStorage.getItem(HH);
+    fetch(API + "/api/devices/" + encodeURIComponent(dev.id) + "/autoshed?household_id=" +
+          encodeURIComponent(hh), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: enable, consent_acknowledged: enable,
+                             consent_version: CONSENT_VERSION })
+    }).then(function (r) { return r.json().then(function (j) { return {s: r.status, j: j}; }); })
+      .then(function (res) {
+        if (res.s !== 200) { done((res.j && res.j.detail) || "Could not save."); return; }
+        done(null); refreshDevices();
+      })
+      .catch(function () { done("Couldn't reach Kroven."); });
+  }
+
+  function restorePower(dev, btn) {
+    var hh = localStorage.getItem(HH);
+    btn.disabled = true; btn.textContent = "\u2026";
+    fetch(API + "/api/devices/" + encodeURIComponent(dev.id) + "/restore?household_id=" +
+          encodeURIComponent(hh), { method: "POST" })
+      .then(function (r) { return r.json(); })
+      .then(function () { setTimeout(refreshDevices, 1200); })
+      .catch(function () { btn.textContent = "!"; setTimeout(refreshDevices, 1400); });
   }
 
   function removeDevPanel() {

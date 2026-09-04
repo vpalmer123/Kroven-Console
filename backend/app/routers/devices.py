@@ -15,12 +15,13 @@ UI can never imply control it does not have.
 
 import hmac
 import os
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
 from app.db import get_db
-from app.device_registry import control_device, list_devices, resolve_device
+from app.device_registry import control_device, get_device, list_devices, resolve_device
 
 router = APIRouter()
 
@@ -156,6 +157,101 @@ async def set_appliance(device_id: str, req: ApplianceRequest, household_id: str
     device["meta"] = meta
     return {"ok": True, "appliance": meta.get("appliance"),
             "expected_watts": meta.get("expected_watts")}
+
+
+class AutoShedRequest(BaseModel):
+    enabled: bool
+    # Must be sent true by the client when enabling. The server does not take
+    # `enabled: true` alone as consent — a toggle can be flipped by a stray
+    # click, and this cuts power to real hardware.
+    consent_acknowledged: bool = False
+    consent_version: str | None = None
+    idle_watts: float | None = None
+    idle_minutes: float | None = None
+
+
+@router.post("/{device_id}/autoshed")
+async def set_autoshed(device_id: str, req: AutoShedRequest, household_id: str):
+    """Turn automatic load shedding on or off for ONE device.
+
+    Enabling requires an explicit acknowledgement carrying the version of the
+    wording that was shown. Consent to older wording does not carry forward:
+    if the copy changes, the user is asked again, because what they agreed to
+    is no longer what the feature does.
+
+    Disabling never requires anything. Withdrawing permission must always be
+    easier than granting it.
+    """
+    from app.automation import CONSENT_VERSION, settings_for
+
+    device = get_device(household_id, device_id)
+    if device is None:
+        raise HTTPException(status_code=404, detail="That device is not registered.")
+
+    if req.enabled:
+        if not device.get("controllable", False):
+            raise HTTPException(
+                status_code=409,
+                detail=f"{device.get('name')} is read-only, so it cannot be shed.",
+            )
+        if not req.consent_acknowledged:
+            raise HTTPException(
+                status_code=400,
+                detail="Automatic power cuts need explicit acknowledgement.",
+            )
+        if req.consent_version != CONSENT_VERSION:
+            raise HTTPException(
+                status_code=409,
+                detail="The terms shown are out of date. Reload and confirm again.",
+            )
+
+    meta = dict(device.get("meta") or {})
+    current = settings_for(device)
+    if req.enabled:
+        meta["auto_shed"] = {
+            "enabled": True,
+            "consented_at": datetime.now(timezone.utc).isoformat(),
+            "consent_version": CONSENT_VERSION,
+            "idle_watts": float(req.idle_watts or current["idle_watts"]),
+            "idle_minutes": float(req.idle_minutes or current["idle_minutes"]),
+        }
+    else:
+        # Keep the record that consent was once given, but switch it off.
+        prev = dict(meta.get("auto_shed") or {})
+        prev["enabled"] = False
+        meta["auto_shed"] = prev
+
+    try:
+        get_db().table("devices").update({"meta": meta}).eq("id", device_id).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not save: {type(e).__name__}") from e
+
+    device["meta"] = meta
+    return {"ok": True, "auto_shed": meta["auto_shed"]}
+
+
+@router.post("/{device_id}/restore")
+async def restore_power(device_id: str, household_id: str):
+    """Manual override: return mains power immediately.
+
+    Deliberately not gated behind the control token. That token protects
+    against a stranger switching hardware off; this only ever switches power
+    back ON, and making the undo harder to reach than the action is how people
+    get stuck with something they cannot re-energise.
+    """
+    from app.automation import restore
+    result = await restore(household_id, device_id, automated=False,
+                           reason="manual override from console")
+    if not result["ok"]:
+        raise HTTPException(status_code=502, detail=result["detail"])
+    return result
+
+
+@router.get("/events")
+async def automation_events(household_id: str, limit: int = 25):
+    """Audit trail of automated actions, newest first."""
+    from app.automation import recent_events
+    return {"events": recent_events(household_id, limit)}
 
 
 @router.post("/resolve")

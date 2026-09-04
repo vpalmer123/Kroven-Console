@@ -232,8 +232,16 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
     </div>
     <input id="ka-email" type="email" autocomplete="email" placeholder="Email" aria-label="Email"
            style="width:100%;box-sizing:border-box;padding:14px 15px;border-radius:10px;border:1px solid #24304A;background:#141C2C;color:#E8EDF7;font-size:16px;outline:none;margin-bottom:9px">
-    <input id="ka-pass" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password"
-           style="width:100%;box-sizing:border-box;padding:14px 15px;border-radius:10px;border:1px solid #24304A;background:#141C2C;color:#E8EDF7;font-size:16px;outline:none">
+    <div style="position:relative">
+      <input id="ka-pass" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password"
+             style="width:100%;box-sizing:border-box;padding:14px 46px 14px 15px;border-radius:10px;border:1px solid #24304A;background:#141C2C;color:#E8EDF7;font-size:16px;outline:none">
+      <button id="ka-eye" type="button" aria-label="Show password" title="Show password"
+              style="position:absolute;right:6px;top:50%;transform:translateY(-50%);width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:0;background:transparent;cursor:pointer;padding:0">
+        <svg id="ka-eye-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7D8CA6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>
+        </svg>
+      </button>
+    </div>
     <button id="ka-go" style="width:100%;margin-top:12px;padding:13px;border-radius:10px;border:0;background:#2F6BFF;color:#fff;font-size:14.5px;font-weight:600;cursor:pointer">Sign in</button>
     <div id="ka-msg" role="alert" style="font-size:12.5px;min-height:34px;margin-top:11px;text-align:center;line-height:1.5;color:#FF6B6B"></div>
     <div id="ka-stats" style="text-align:center;font-size:11px;color:#3F4C63;line-height:1.7;min-height:15px;margin-top:2px"></div><div style="text-align:center;font-size:11.5px;color:#4C5A73;line-height:1.6">Your data is private to your account.</div>
@@ -330,16 +338,19 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
       doomed.forEach(function (k) { localStorage.removeItem(k); });
       try { sessionStorage.clear(); } catch (e) {}
 
-      // Tell the server to revoke the session as well. Clearing storage only
-      // makes this browser forget the tokens; without this the refresh token
-      // stays valid and could still mint new sessions.
-      var done = function () { location.replace(location.pathname); };
-      if (!tok) { done(); return; }
-      _fetch(API + "/api/auth/signout", {
-        method: "POST", headers: { Authorization: "Bearer " + tok }
-      }).then(done, done);
-      // Never hang on the network: go regardless after a moment.
-      setTimeout(done, 1500);
+      // Revoke server-side, but never make the user wait for it. keepalive
+      // lets the request outlive the page, so the session is still killed at
+      // Supabase while the UI navigates immediately. Waiting on this is what
+      // made signing out feel like it had hung.
+      if (tok) {
+        try {
+          _fetch(API + "/api/auth/signout", {
+            method: "POST", keepalive: true,
+            headers: { Authorization: "Bearer " + tok }
+          });
+        } catch (e) {}
+      }
+      location.replace(location.pathname);
     }
 
     if (narrow) {
@@ -385,6 +396,25 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
     (document.body || document.documentElement).appendChild(wrap);
   }
   function say(t, ok) { msg.style.color = ok ? "#5BD98A" : "#FF6B6B"; msg.textContent = t || ""; }
+
+
+  // Reveal toggle. Type is flipped rather than the value being echoed
+  // anywhere, so nothing extra is ever written to the DOM.
+  var eye = document.getElementById("ka-eye");
+  if (eye) {
+    eye.addEventListener("click", function () {
+      var shown = pass.type === "text";
+      pass.type = shown ? "password" : "text";
+      eye.setAttribute("aria-label", shown ? "Show password" : "Hide password");
+      eye.title = shown ? "Show password" : "Hide password";
+      var svg = document.getElementById("ka-eye-svg");
+      svg.innerHTML = shown
+        ? '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>'
+        : '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/><line x1="3" y1="3" x2="21" y2="21"/>';
+      svg.setAttribute("stroke", shown ? "#7D8CA6" : "#A9B8D0");
+      pass.focus();
+    });
+  }
 
   function setMode(m) {
     mode = m;
@@ -527,7 +557,13 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
         var list = document.getElementById("kd-list");
         var count = document.getElementById("kd-count");
         if (!list) return;
-        var devs = (d && d.devices) || [];
+        // Only devices Kroven can actually reach through a working
+        // integration. The Kasa plug stays in the registry because the
+        // historical readings are classified against it, but listing hardware
+        // with no API path just shows a row that can never do anything.
+        var devs = ((d && d.devices) || []).filter(function (v) {
+          return v.supported !== false;
+        });
         count.textContent = devs.length ? devs.length + "" : "none";
         if (!devs.length) {
           list.innerHTML = '<div style="padding:12px 13px;font-size:12px;color:#7D8CA6">' +
@@ -655,7 +691,6 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
       '<select id="kp-brand" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:8px;' +
       'border:1px solid #24304A;background:#141C2C;color:#E8EDF7;font-size:16px;margin-bottom:8px">' +
         '<option value="shelly">Shelly</option>' +
-        '<option value="kasa">TP-Link Kasa \u2014 not available yet</option>' +
       '</select>' +
       '<div style="font-size:10.5px;color:#7D8CA6;line-height:1.5;margin-bottom:8px">' + b.help + '</div>' +
       (usable

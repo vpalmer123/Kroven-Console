@@ -25,6 +25,11 @@ from app.device_registry import control_device, get_device, list_devices, resolv
 
 router = APIRouter()
 
+# Device kinds with a working two-way integration today. Kasa is absent on
+# purpose: its firmware speaks TPAP, which no released python-kasa can talk,
+# so those plugs can be neither read nor switched.
+SUPPORTED_KINDS = {"shelly"}
+
 
 def _require_control_token(supplied: str | None) -> None:
     """Gate physical actuation behind a shared secret.
@@ -92,6 +97,13 @@ async def get_devices(household_id: str):
             # detection.
             "appliance": meta.get("appliance"),
             "expected_watts": meta.get("expected_watts"),
+            # Whether Kroven has a working integration for this hardware at
+            # all. The Kasa plug speaks TPAP, which no released python-kasa
+            # implements, so it can be neither read nor switched — the row is
+            # kept because historical readings are classified against it, but
+            # the UI hides it. A device that can never do anything is worse
+            # than absent: it reads as broken rather than unsupported.
+            "supported": (d.get("kind") or "").lower() in SUPPORTED_KINDS,
             # Consumers must not feed aggregate traces to per-device models.
             "signal_type": d.get("signal_type", "dedicated"),
             "controllable": d.get("controllable", True),

@@ -22,7 +22,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import forecast, energy_data, chat, rates, devices, signals, activity, dashboard, mapconfig, regions, access, session, pairing
+from app.routers import forecast, energy_data, chat, rates, devices, signals, activity, dashboard, mapconfig, regions, access, session, pairing, stats
 from app.security import (allowed_origin_regex, allowed_origins, docs_enabled,
                           rate_limit_middleware)
 
@@ -73,6 +73,7 @@ app.include_router(regions.router, prefix="/api/regions", tags=["regions"])
 app.include_router(access.router, prefix="/api/access", tags=["access"])
 app.include_router(session.router, prefix="/api/auth", tags=["auth"])
 app.include_router(pairing.router, prefix="/api/pair", tags=["pairing"])
+app.include_router(stats.router, prefix="/api/stats", tags=["stats"])
 
 
 @app.on_event("startup")

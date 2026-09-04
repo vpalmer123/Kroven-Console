@@ -292,31 +292,14 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
     // hide() also runs when auth is unavailable, so check there is really a
     // session before offering to end one.
     if (!localStorage.getItem(TK)) return;
+
+    var narrow = window.matchMedia("(max-width: 700px)").matches;
     var who = localStorage.getItem(EM) || "";
+
     var wrap = document.createElement("div");
     wrap.id = "kroven-acct";
-    // Narrow screens: the console header already occupies the top strip, so
-    // the chip drops to the bottom-left and sheds the email, which is the part
-    // that makes it wide. Safe-area insets keep it clear of the home indicator.
-    var narrow = window.matchMedia("(max-width: 560px)").matches;
-    wrap.style.cssText = "position:fixed;z-index:2147483000;" +
-      (narrow
-        ? "left:10px;bottom:calc(8px + env(safe-area-inset-bottom));"
-        : "top:calc(10px + env(safe-area-inset-top));right:12px;") +
-      "display:flex;align-items:center;gap:8px;font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;" +
-      "font-size:11px;color:#5C6B85;background:rgba(20,28,44,.9);border:1px solid #24304A;" +
-      "border-radius:999px;padding:6px 11px;backdrop-filter:blur(6px);user-select:none;" +
-      "-webkit-user-select:none";
-    var label = document.createElement("span");
-    label.textContent = who;
-    label.style.cssText = "max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
-    var out = document.createElement("button");
-    out.textContent = "Sign out";
-    out.style.cssText = "border:0;background:transparent;color:#7D8CA6;font-size:11px;" +
-      "font-weight:600;cursor:pointer;padding:0;font-family:inherit";
-    out.addEventListener("mouseenter", function () { out.style.color = "#E8EDF7"; });
-    out.addEventListener("mouseleave", function () { out.style.color = "#7D8CA6"; });
-    out.addEventListener("click", function () {
+
+    function signOut() {
       // Clear the household too: leaving it behind would start the next
       // sign-in pointing at the previous account's data.
       localStorage.removeItem(TK);
@@ -324,11 +307,48 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
       localStorage.removeItem(HH);
       localStorage.removeItem(EM);
       location.reload();
-    });
-    // Tap target: 11px text alone is too small to hit reliably on a phone.
-    out.style.padding = narrow ? "4px 2px" : "0";
-    if (who && !narrow) wrap.appendChild(label);
-    wrap.appendChild(out);
+    }
+
+    if (narrow) {
+      // Both bottom corners belong to the console ("Your data", "Live
+      // signals"), and a floating pill over the content reads as debris. Sit
+      // in the header band instead, icon only, so it looks like part of the
+      // chrome rather than something dropped on top of it.
+      wrap.style.cssText =
+        "position:fixed;top:calc(14px + env(safe-area-inset-top));right:12px;" +
+        "z-index:2147483000;width:34px;height:34px;display:flex;align-items:center;" +
+        "justify-content:center;border-radius:9px;background:transparent;border:0;" +
+        "cursor:pointer;user-select:none;-webkit-user-select:none;opacity:.5";
+      wrap.setAttribute("role", "button");
+      wrap.setAttribute("aria-label", "Sign out" + (who ? " of " + who : ""));
+      wrap.title = who ? "Sign out (" + who + ")" : "Sign out";
+      wrap.innerHTML =
+        '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" ' +
+        'stroke="#8494AD" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+        '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>' +
+        '<polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>';
+      wrap.addEventListener("click", signOut);
+    } else {
+      wrap.style.cssText =
+        "position:fixed;top:calc(10px + env(safe-area-inset-top));right:12px;" +
+        "z-index:2147483000;display:flex;align-items:center;gap:8px;" +
+        "font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;" +
+        "font-size:11px;color:#5C6B85;background:rgba(20,28,44,.9);border:1px solid #24304A;" +
+        "border-radius:999px;padding:6px 11px;backdrop-filter:blur(6px);user-select:none";
+      var label = document.createElement("span");
+      label.textContent = who;
+      label.style.cssText = "max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
+      var out = document.createElement("button");
+      out.textContent = "Sign out";
+      out.style.cssText = "border:0;background:transparent;color:#7D8CA6;font-size:11px;" +
+        "font-weight:600;cursor:pointer;padding:0;font-family:inherit";
+      out.addEventListener("mouseenter", function () { out.style.color = "#E8EDF7"; });
+      out.addEventListener("mouseleave", function () { out.style.color = "#7D8CA6"; });
+      out.addEventListener("click", signOut);
+      if (who) wrap.appendChild(label);
+      wrap.appendChild(out);
+    }
+
     (document.body || document.documentElement).appendChild(wrap);
   }
   function say(t, ok) { msg.style.color = ok ? "#5BD98A" : "#FF6B6B"; msg.textContent = t || ""; }

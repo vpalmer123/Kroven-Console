@@ -215,6 +215,55 @@ async def refresh(body: RefreshRequest, request: Request):
     return await _session_response(r.json())
 
 
+@router.post("/signout")
+async def signout(authorization: str | None = Header(default=None)):
+    """Revoke the session at Supabase, not just in the browser.
+
+    Clearing localStorage makes the browser forget the tokens; it does not make
+    them stop working. The refresh token remains valid for its full lifetime,
+    so anything that captured it — a shared machine, a synced browser profile,
+    a copied backup — could still mint new access tokens long after the user
+    believed they had signed out.
+
+    Always reports success. A sign-out that appears to fail is worse than one
+    that quietly could not reach the server: the client clears its own state
+    either way, and leaving someone stuck on a screen telling them they are
+    still signed in helps nobody.
+    """
+    from app.auth import bearer_token
+    token = bearer_token(authorization)
+    if not token:
+        return {"ok": True, "revoked": False, "detail": "No session to end."}
+
+    url, key = _cfg()
+    if not url or not key:
+        return {"ok": True, "revoked": False, "detail": "Signed out locally."}
+
+    revoked = False
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.post(
+                f"{url}/auth/v1/logout",
+                params={"scope": "global"},   # every session for this user
+                headers={"apikey": key, "Authorization": f"Bearer {token}"},
+            )
+        revoked = r.status_code < 300
+        if not revoked:
+            logger.info("supabase logout returned %s", r.status_code)
+    except httpx.HTTPError as e:
+        logger.warning("could not reach Supabase to revoke session: %s", type(e).__name__)
+
+    # Any cached verification for this token must go, or it would keep
+    # answering "signed in" from memory for up to a minute after revocation.
+    try:
+        from app.auth import _token_cache
+        _token_cache.pop(token, None)
+    except Exception:
+        pass
+
+    return {"ok": True, "revoked": revoked}
+
+
 @router.get("/me")
 async def me(authorization: str | None = Header(default=None)):
     """Who the current session belongs to. Used to decide whether to show login."""

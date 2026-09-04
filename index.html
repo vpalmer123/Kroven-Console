@@ -305,6 +305,7 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
   // utility, not part of the interface being demonstrated.
   function addAccountChip() {
     if (document.getElementById("kroven-acct")) return;
+    if (!localStorage.getItem(TK)) return;
     // hide() also runs when auth is unavailable, so check there is really a
     // session before offering to end one.
     if (!localStorage.getItem(TK)) return;
@@ -316,13 +317,29 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
     wrap.id = "kroven-acct";
 
     function signOut() {
-      // Clear the household too: leaving it behind would start the next
-      // sign-in pointing at the previous account's data.
-      localStorage.removeItem(TK);
-      localStorage.removeItem(RT);
-      localStorage.removeItem(HH);
-      localStorage.removeItem(EM);
-      location.reload();
+      var tok = localStorage.getItem(TK);
+
+      // Wipe every key this app owns, not a hand-listed few. Naming them
+      // individually is how kroven_region and kroven_coords — the previous
+      // user's location — survived a sign-out and greeted the next person.
+      var doomed = [];
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && k.indexOf("kroven_") === 0) doomed.push(k);
+      }
+      doomed.forEach(function (k) { localStorage.removeItem(k); });
+      try { sessionStorage.clear(); } catch (e) {}
+
+      // Tell the server to revoke the session as well. Clearing storage only
+      // makes this browser forget the tokens; without this the refresh token
+      // stays valid and could still mint new sessions.
+      var done = function () { location.replace(location.pathname); };
+      if (!tok) { done(); return; }
+      _fetch(API + "/api/auth/signout", {
+        method: "POST", headers: { Authorization: "Bearer " + tok }
+      }).then(done, done);
+      // Never hang on the network: go regardless after a moment.
+      setTimeout(done, 1500);
     }
 
     if (narrow) {
@@ -919,8 +936,15 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
   }
 
   function syncPairUI() {
-    if (location.hash === "#console") { buildDevPanel(); buildWeatherBand(); }
-    else { removeDevPanel(); removeWeatherBand(); }
+    // Signed out means signed out: these are fixed-position and would
+    // otherwise sit on top of the login screen, which reads as still being
+    // logged in.
+    var signedIn = !!localStorage.getItem(TK);
+    if (signedIn && location.hash === "#console") {
+      buildDevPanel(); buildWeatherBand();
+    } else {
+      removeDevPanel(); removeWeatherBand();
+    }
   }
   window.addEventListener("hashchange", syncPairUI);
   setInterval(syncPairUI, 800);
@@ -967,7 +991,14 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
           setMode("signin"); show();
         });
     })
-    .catch(function () { hide(); });  // unreachable: never lock anyone out
+    .catch(function () {
+      // Failing open is only ever acceptable for someone who ALREADY has a
+      // session: it stops a backend blip locking the owner out of their own
+      // console. With no token there is nothing to preserve, so an
+      // unreachable server must show the login screen rather than reveal the
+      // app underneath.
+      if (tok) { hide(); } else { setMode("signin"); show(); }
+    });
 })();
 </script>
 

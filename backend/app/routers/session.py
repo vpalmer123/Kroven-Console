@@ -174,6 +174,47 @@ async def _session_response(session: dict) -> dict | JSONResponse:
     }
 
 
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+@router.post("/refresh")
+async def refresh(body: RefreshRequest, request: Request):
+    """Trade a refresh token for a fresh access token.
+
+    Access tokens last about an hour. Without this, anyone returning to the
+    console the next day — from history, a bookmark, a phone that never closes
+    tabs — would find themselves signed out, which is not how a signed-in app
+    is expected to behave. Nobody clears their cache; they just come back and
+    expect to still be there.
+
+    Refresh tokens rotate: Supabase returns a new one each time, and the old
+    one stops working. The caller must store what comes back or the next
+    refresh fails.
+    """
+    url, key = _cfg()
+    if not url or not key:
+        return _fail(503, "Accounts are not configured on this server.")
+
+    try:
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.post(
+                f"{url}/auth/v1/token",
+                params={"grant_type": "refresh_token"},
+                headers={"apikey": key, "Content-Type": "application/json"},
+                json={"refresh_token": body.refresh_token},
+            )
+    except httpx.HTTPError:
+        return _fail(503, "Couldn't reach the account service. Try again shortly.")
+
+    if r.status_code >= 400:
+        # Expired or already-rotated token. Not an error worth alarming about;
+        # the caller signs in again.
+        return _fail(401, "Your session has ended. Sign in again.")
+
+    return await _session_response(r.json())
+
+
 @router.get("/me")
 async def me(authorization: str | None = Header(default=None)):
     """Who the current session belongs to. Used to decide whether to show login."""

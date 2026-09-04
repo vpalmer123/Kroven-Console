@@ -243,6 +243,16 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
 (function () {
   var API = "https://kroven-console-production.up.railway.app";
   var TK = "kroven_token", HH = "kroven_household_id", EM = "kroven_email";
+  var RT = "kroven_refresh";
+
+  // Refresh tokens rotate - Supabase invalidates the old one each time - so
+  // whatever comes back must replace what was stored or the next renewal fails.
+  function save(d) {
+    localStorage.setItem(TK, d.access_token);
+    if (d.refresh_token) localStorage.setItem(RT, d.refresh_token);
+    if (d.household_id) localStorage.setItem(HH, d.household_id);
+    if (d.email) localStorage.setItem(EM, d.email);
+  }
 
   // Attach the session to Kroven API calls. Done by wrapping fetch because the
   // console is a prebuilt bundle and its request code cannot be edited safely.
@@ -302,6 +312,7 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
       // Clear the household too: leaving it behind would start the next
       // sign-in pointing at the previous account's data.
       localStorage.removeItem(TK);
+      localStorage.removeItem(RT);
       localStorage.removeItem(HH);
       localStorage.removeItem(EM);
       location.reload();
@@ -337,9 +348,7 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
       .then(function (res) {
         var d = res.d || {};
         if (d.ok && d.access_token) {
-          localStorage.setItem(TK, d.access_token);
-          localStorage.setItem(HH, d.household_id);
-          if (d.email) localStorage.setItem(EM, d.email);
+          save(d);
           location.reload();
           return;
         }
@@ -379,8 +388,20 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
         hide();
         return;
       }
-      if (tok) localStorage.removeItem(TK);
-      setMode("signin"); show();
+      // Access tokens last about an hour, so anyone returning the next day
+      // arrives with a dead one. Renew silently before asking them to sign in
+      // again — people come back from history and expect to still be here.
+      var rt = localStorage.getItem(RT);
+      if (!rt) { if (tok) localStorage.removeItem(TK); setMode("signin"); show(); return; }
+      return _fetch(API + "/api/auth/refresh", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: rt })
+      }).then(function (r) { return r.json(); })
+        .then(function (n) {
+          if (n && n.ok && n.access_token) { save(n); hide(); return; }
+          localStorage.removeItem(TK); localStorage.removeItem(RT);
+          setMode("signin"); show();
+        });
     })
     .catch(function () { hide(); });  // unreachable: never lock anyone out
 })();

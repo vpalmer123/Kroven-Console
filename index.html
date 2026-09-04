@@ -320,21 +320,28 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
     el.addEventListener("keydown", function (ev) { if (ev.key === "Enter") submit(); });
   });
 
-  // Validate any stored session before letting the app render, so a revoked or
-  // expired token shows the login screen rather than a broken console.
+  // Ask the backend before deciding anything. Showing the login form purely
+  // because no token is stored would lock the owner out whenever the frontend
+  // is deployed ahead of the backend: the form would render, sign-up would
+  // 404, and there would be no way through. So a backend that cannot
+  // authenticate means no gate at all.
   var tok = localStorage.getItem(TK);
-  if (!tok) { setMode("signin"); show(); return; }
-  _fetch(API + "/api/auth/me", { headers: { "Authorization": "Bearer " + tok } })
-    .then(function (r) { return r.json(); })
+  _fetch(API + "/api/auth/me", tok ? { headers: { "Authorization": "Bearer " + tok } } : undefined)
+    .then(function (r) {
+      if (r.status === 404) { hide(); return null; }   // auth not deployed yet
+      return r.json();
+    })
     .then(function (d) {
+      if (d === null) return;
       if (d && d.signed_in && d.household_id) {
         localStorage.setItem(HH, d.household_id);
         hide();
-      } else {
-        localStorage.removeItem(TK); setMode("signin"); show();
+        return;
       }
+      if (tok) localStorage.removeItem(TK);
+      setMode("signin"); show();
     })
-    .catch(function () { hide(); });  // backend unreachable: never lock out an existing session
+    .catch(function () { hide(); });  // unreachable: never lock anyone out
 })();
 </script>
 

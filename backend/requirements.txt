@@ -11,3 +11,7 @@ apscheduler==3.10.4
 httpx==0.27.2
 python-kasa==0.10.2
 rapidfuzz==3.9.7
+# Required by pydantic's EmailStr, used on the sign-up/sign-in bodies.
+# Pydantic does not pull this in on its own, so omitting it fails at import
+# time, not at request time — the whole service refuses to boot.
+email-validator==2.2.0

@@ -2,3 +2,5 @@
 python-kasa>=0.10.0
 httpx>=0.27
 python-dotenv>=1.0
+# Reads the legacy .xls files the Kasa app exports (OLE2, not CSV).
+xlrd==2.0.1

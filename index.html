@@ -219,8 +219,8 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
      signed-in household already in localStorage and never renders for a
      signed-out visitor. Nothing in the prebuilt bundle is modified: the
      session token is attached by wrapping window.fetch below. -->
-<div id="kroven-auth" style="position:fixed;inset:0;z-index:2147483647;background:#0E1420;display:none;align-items:center;justify-content:center;font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;padding:24px;overflow:auto">
-  <div style="width:100%;max-width:390px">
+<div id="kroven-auth" style="position:fixed;inset:0;z-index:2147483647;background:#0E1420;display:none;align-items:flex-start;justify-content:center;font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;padding:max(24px,env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom));overflow-y:auto;-webkit-overflow-scrolling:touch">
+  <div style="width:100%;max-width:390px;margin:auto 0">
     <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:6px">
       <span style="font-size:19px;font-weight:700;letter-spacing:1.4px;color:#E8EDF7">KROVEN</span>
       <span style="font-size:8px;letter-spacing:2.4px;margin-top:3px;opacity:.55;font-weight:600;color:#E8EDF7">MOL</span>
@@ -231,9 +231,9 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
       <button id="ka-tab-up"  style="flex:1;padding:9px;border:0;border-radius:8px;background:transparent;color:#8494AD;font-size:13.5px;font-weight:600;cursor:pointer">Create account</button>
     </div>
     <input id="ka-email" type="email" autocomplete="email" placeholder="Email" aria-label="Email"
-           style="width:100%;box-sizing:border-box;padding:13px 15px;border-radius:10px;border:1px solid #24304A;background:#141C2C;color:#E8EDF7;font-size:15px;outline:none;margin-bottom:9px">
+           style="width:100%;box-sizing:border-box;padding:14px 15px;border-radius:10px;border:1px solid #24304A;background:#141C2C;color:#E8EDF7;font-size:16px;outline:none;margin-bottom:9px">
     <input id="ka-pass" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password"
-           style="width:100%;box-sizing:border-box;padding:13px 15px;border-radius:10px;border:1px solid #24304A;background:#141C2C;color:#E8EDF7;font-size:15px;outline:none">
+           style="width:100%;box-sizing:border-box;padding:14px 15px;border-radius:10px;border:1px solid #24304A;background:#141C2C;color:#E8EDF7;font-size:16px;outline:none">
     <button id="ka-go" style="width:100%;margin-top:12px;padding:13px;border-radius:10px;border:0;background:#2F6BFF;color:#fff;font-size:14.5px;font-weight:600;cursor:pointer">Sign in</button>
     <div id="ka-msg" role="alert" style="font-size:12.5px;min-height:34px;margin-top:11px;text-align:center;line-height:1.5;color:#FF6B6B"></div>
     <div style="text-align:center;font-size:11.5px;color:#4C5A73;line-height:1.6">Your data is private to your account.</div>
@@ -295,10 +295,18 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
     var who = localStorage.getItem(EM) || "";
     var wrap = document.createElement("div");
     wrap.id = "kroven-acct";
-    wrap.style.cssText = "position:fixed;top:10px;right:12px;z-index:2147483000;" +
+    // Narrow screens: the console header already occupies the top strip, so
+    // the chip drops to the bottom-left and sheds the email, which is the part
+    // that makes it wide. Safe-area insets keep it clear of the home indicator.
+    var narrow = window.matchMedia("(max-width: 560px)").matches;
+    wrap.style.cssText = "position:fixed;z-index:2147483000;" +
+      (narrow
+        ? "left:10px;bottom:calc(8px + env(safe-area-inset-bottom));"
+        : "top:calc(10px + env(safe-area-inset-top));right:12px;") +
       "display:flex;align-items:center;gap:8px;font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;" +
-      "font-size:11px;color:#5C6B85;background:rgba(20,28,44,.82);border:1px solid #24304A;" +
-      "border-radius:999px;padding:5px 10px;backdrop-filter:blur(6px);user-select:none";
+      "font-size:11px;color:#5C6B85;background:rgba(20,28,44,.9);border:1px solid #24304A;" +
+      "border-radius:999px;padding:6px 11px;backdrop-filter:blur(6px);user-select:none;" +
+      "-webkit-user-select:none";
     var label = document.createElement("span");
     label.textContent = who;
     label.style.cssText = "max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
@@ -317,7 +325,9 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
       localStorage.removeItem(EM);
       location.reload();
     });
-    if (who) wrap.appendChild(label);
+    // Tap target: 11px text alone is too small to hit reliably on a phone.
+    out.style.padding = narrow ? "4px 2px" : "0";
+    if (who && !narrow) wrap.appendChild(label);
     wrap.appendChild(out);
     (document.body || document.documentElement).appendChild(wrap);
   }

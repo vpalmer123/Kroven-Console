@@ -185,6 +185,35 @@ async def rate_limit_middleware(request: Request, call_next):
     return _harden(await call_next(request))
 
 
+def allowed_households() -> set[str]:
+    """Households permitted to spend model calls.
+
+    Set KROVEN_ALLOWED_HOUSEHOLDS to a comma-separated list of household ids.
+    Unset means everyone, which is the current behaviour and stays bounded by
+    the rate limits above.
+
+    Worth being clear about what this is: household_id is supplied by the
+    client, so this is a gate, not authentication. It stops the case that
+    actually costs money — someone opening the shared link and chatting, or
+    pointing a script at the endpoint — because their browser generates its own
+    household id and that id is not on the list. It would not stop someone who
+    learned the real id and sent it deliberately.
+
+    Real isolation needs accounts. This is the honest interim: it makes the
+    budget spendable only by the household that owns it, without requiring a
+    login the product does not have yet.
+    """
+    raw = os.environ.get("KROVEN_ALLOWED_HOUSEHOLDS", "").strip()
+    return {h.strip() for h in raw.split(",") if h.strip()}
+
+
+def household_permitted(household_id: str | None) -> bool:
+    allowed = allowed_households()
+    if not allowed:
+        return True
+    return (household_id or "").strip() in allowed
+
+
 def allowed_origins() -> list[str]:
     """Origins permitted to call the API from a browser.
 

@@ -26,6 +26,7 @@ from app.intent import Domain, classify as classify_intent
 from app.usage_stats import (by_device as usage_by_device, fetch as fetch_readings,
                              summarise as summarise_usage)
 from app.regional import resolve as resolve_location
+from app.security import household_permitted
 from app.rate_data import other_period, pricing_at
 from app.routers.rates import recommend, RecommendationRequest
 
@@ -397,6 +398,27 @@ def _build_messages(req: "ChatRequest") -> list[dict]:
 
 @router.post("")
 async def chat(req: ChatRequest):
+    # Checked before anything else, because everything below this line either
+    # queries the database or spends money with Anthropic.
+    #
+    # Returned as a normal assistant turn rather than an HTTP error: the
+    # console renders whatever comes back, so a 403 shows up as a broken bubble
+    # while this reads as an answer. Someone opening a shared link should see
+    # an explanation, not a failure.
+    if not household_permitted(req.household_id):
+        return {
+            "type": "message",
+            "role": "assistant",
+            "model": MODEL,
+            "stop_reason": "end_turn",
+            "content": [{
+                "type": "text",
+                "text": "This is a private preview of Kroven, so the assistant "
+                        "is limited to the household it's set up for. Everything "
+                        "else on the page works — have a look around.",
+            }],
+        }
+
     db = get_db()
 
     forecast_row = (

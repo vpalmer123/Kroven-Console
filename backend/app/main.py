@@ -23,15 +23,32 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers import forecast, energy_data, chat, rates, devices, signals, activity, dashboard, mapconfig, regions
+from app.security import allowed_origins, docs_enabled, rate_limit_middleware
 
-app = FastAPI(title="Kroven API", version="0.1.0")
+# /docs and /openapi.json are off unless KROVEN_ENABLE_DOCS is set. FastAPI
+# publishes both by default, which hands any visitor a complete map of the API,
+# including the endpoints that switch physical hardware.
+app = FastAPI(
+    title="Kroven API",
+    version="0.1.0",
+    docs_url="/docs" if docs_enabled() else None,
+    redoc_url="/redoc" if docs_enabled() else None,
+    openapi_url="/openapi.json" if docs_enabled() else None,
+)
 
-# Lock this down to your real frontend domain before going to production.
+# Bounds what any one caller, and everyone together, can spend. /api/chat calls
+# Anthropic on our key, so an unlimited public endpoint is an unlimited bill.
+# Added before CORS so that CORS headers still land on a 429.
+app.middleware("http")(rate_limit_middleware)
+
+# Set KROVEN_ALLOWED_ORIGINS in Railway to the console's origin. Unset means
+# open, which is logged loudly at startup rather than failing closed and taking
+# the live demo down for everyone it was shared with.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TODO: replace with ["https://krovens.netlify.app"]
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=allowed_origins(),
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type"],
 )
 
 app.include_router(energy_data.router, prefix="/api/energy", tags=["energy"])

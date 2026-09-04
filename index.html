@@ -244,7 +244,7 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
     </div>
     <button id="ka-go" style="width:100%;margin-top:12px;padding:13px;border-radius:10px;border:0;background:#2F6BFF;color:#fff;font-size:14.5px;font-weight:600;cursor:pointer">Sign in</button>
     <div id="ka-msg" role="alert" style="font-size:12.5px;min-height:34px;margin-top:11px;text-align:center;line-height:1.5;color:#FF6B6B"></div>
-    <div id="ka-stats" style="text-align:center;font-size:11px;color:#3F4C63;line-height:1.7;min-height:15px;margin-top:2px"></div><div style="text-align:center;font-size:11.5px;color:#4C5A73;line-height:1.6">Your data is private to your account.</div>
+    <div style="text-align:center;font-size:11px;color:#3F4C63;line-height:1.7;margin-top:2px">Bay Area beta</div><div style="text-align:center;font-size:11.5px;color:#4C5A73;line-height:1.6">Your data is private to your account.</div>
   </div>
 </div>
 <script>
@@ -281,19 +281,6 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
 
   var box = document.getElementById("kroven-auth");
 
-  // Real counts from the database, or nothing at all. Never a placeholder:
-  // a login screen opening with an invented figure is the same category of
-  // lie as an invented forecast.
-  _fetch(API + "/api/stats").then(function (r) { return r.json(); })
-    .then(function (s) {
-      var el = document.getElementById("ka-stats");
-      if (!el || !s) return;
-      var bits = [];
-      if (s.readings_logged) bits.push(s.readings_logged.toLocaleString() + " readings logged");
-      if (s.days_collecting) bits.push(s.days_collecting + " days collecting");
-      el.textContent = bits.join("  \u00b7  ");
-    })
-    .catch(function () {});
 
   var email = document.getElementById("ka-email"), pass = document.getElementById("ka-pass");
   var go = document.getElementById("ka-go"), msg = document.getElementById("ka-msg");

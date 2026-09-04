@@ -209,15 +209,25 @@ def signal_type_of(rules: list[dict], source: str, recorded_at: str | None) -> s
         if r["kind"] not in parts and src != r["kind"]:
             continue
 
+        # The OLD name is decisive: a logger still writing under it has not yet
+        # picked up the new role, whatever the clock says. This covers the
+        # one-row window where the database has flipped mid-poll.
         if r["previous_name"] and r["previous_name"] in parts and r["previous"]:
             return r["previous"]
-        if r["name"] and r["name"] in parts:
-            return r["current"]
 
+        # Then the clock, and it must outrank the current name. A device can
+        # carry its new name for days before the hardware physically moves —
+        # the registry is updated when someone edits it, the plug moves when
+        # someone walks over to the wall. Readings in between belong to the old
+        # role, and matching on the current name alone would silently relabel
+        # every one of them.
         if r["previous"] and r["changed_at"] and recorded_at:
             # String compare is safe here: both are ISO-8601 UTC from Postgres.
             if str(recorded_at) < str(r["changed_at"]):
                 return r["previous"]
+
+        if r["name"] and r["name"] in parts:
+            return r["current"]
         return r["current"]
     return None
 
@@ -360,6 +370,9 @@ async def control_device(device_id: str, action: str,
             channel=int(device.get("channel") or 0),
             label=name,
             meta=device.get("meta") or {},
+            # Passed so environment credentials can be restricted to the
+            # operator's own household and never used for a paired user.
+            household_id=device.get("household_id") or household,
         )
     except DeviceError as e:
         return _fail(device_id, device, action, str(e))

@@ -243,17 +243,32 @@ def fetch(db, household_id: str, limit: int = 2000,
 
     Pass signal_type=None to get everything, e.g. for whole-home totals.
     """
+    # PostgREST caps a single response at 1000 rows however large a limit is
+    # requested, and returns the newest ones. Asking for 2000 therefore gave
+    # 1000 silently — enough to make a whole device disappear from a summary
+    # once its readings fell outside the newest page, which read as data loss
+    # rather than truncation. Paged explicitly instead.
+    PAGE = 1000
+    rows: list[dict] = []
     try:
-        q = (
-            db.table("energy_readings")
-            .select("recorded_at,kwh_consumed,source")
-            .eq("household_id", household_id)
-            .order("recorded_at", desc=True)
-            .limit(limit)
-        )
-        rows = q.execute().data or []
+        while len(rows) < limit:
+            start = len(rows)
+            end = min(start + PAGE, limit) - 1
+            page = (
+                db.table("energy_readings")
+                .select("recorded_at,kwh_consumed,source")
+                .eq("household_id", household_id)
+                .order("recorded_at", desc=True)
+                .range(start, end)
+                .execute()
+                .data
+            ) or []
+            rows.extend(page)
+            if len(page) < (end - start + 1):
+                break                      # last page
     except Exception:
-        return []
+        if not rows:
+            return []
 
     if signal_type is None:
         return rows

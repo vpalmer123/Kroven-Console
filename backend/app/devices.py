@@ -251,7 +251,7 @@ class KasaLocalAdapter:
 
 
 def build_adapter(kind: str, host: str, channel: int = 0, label: str = "plug",
-                  meta: dict | None = None):
+                  meta: dict | None = None, household_id: str | None = None):
     """Adapter for one registry row, chosen by `kind`.
 
     This is the only place a device type maps to a transport. control_device()
@@ -260,11 +260,41 @@ def build_adapter(kind: str, host: str, channel: int = 0, label: str = "plug",
     """
     meta = meta or {}
     kind = (kind or "").strip().lower()
+    owner = _is_owner_household(household_id)
 
     if kind == "shelly":
-        server = meta.get("cloud_server") or os.environ.get("SHELLY_CLOUD_SERVER", "").strip()
-        auth_key = meta.get("cloud_auth_key") or os.environ.get("SHELLY_CLOUD_AUTH_KEY", "").strip()
-        device_id = meta.get("cloud_device_id") or os.environ.get("SHELLY_DEVICE_ID", "").strip()
+        # Credentials are taken as a COMPLETE SET from ONE source. They used to
+        # fall back to the environment field by field, which let them mix
+        # across accounts: a device row carrying a server and key but no
+        # cloud_device_id fell through to the server operator's
+        # SHELLY_DEVICE_ID, so one user's device could actuate the operator's
+        # plug. Partial stored credentials are now an error, not something to
+        # quietly complete from someone else's configuration.
+        stored = (
+            (meta.get("cloud_server") or "").strip(),
+            (meta.get("cloud_auth_key") or "").strip(),
+            (meta.get("cloud_device_id") or "").strip(),
+        )
+        if all(stored):
+            server, auth_key, device_id = stored
+        elif any(stored):
+            raise DeviceError(
+                f"'{label}' has incomplete stored credentials. Reconnect it from "
+                f"Connect Device to fix."
+            )
+        elif owner:
+            # Environment credentials belong to whoever runs the server, so
+            # they are only ever used for that operator's own household — never
+            # as a fallback for a paired user.
+            env = (
+                os.environ.get("SHELLY_CLOUD_SERVER", "").strip(),
+                os.environ.get("SHELLY_CLOUD_AUTH_KEY", "").strip(),
+                os.environ.get("SHELLY_DEVICE_ID", "").strip(),
+            )
+            server, auth_key, device_id = env if all(env) else ("", "", "")
+        else:
+            server = auth_key = device_id = ""
+
         # Cloud wins when it is configured, even though LAN is faster.
         #
         # The deployed backend runs on Railway and the plug lives on a home
@@ -290,13 +320,32 @@ def build_adapter(kind: str, host: str, channel: int = 0, label: str = "plug",
     if kind == "kasa":
         if not host:
             raise DeviceError(f"No address configured for '{label}'.")
-        return KasaLocalAdapter(
-            host, channel, label,
-            meta.get("username") or os.environ.get("KASA_USERNAME", ""),
-            meta.get("password") or os.environ.get("KASA_PASSWORD", ""),
-        )
+        # Same rule as Shelly: the operator's TP-Link account is never used to
+        # authenticate against a paired user's hardware.
+        user = (meta.get("username") or "").strip()
+        pw = (meta.get("password") or "").strip()
+        if not (user or pw) and owner:
+            user = os.environ.get("KASA_USERNAME", "")
+            pw = os.environ.get("KASA_PASSWORD", "")
+        return KasaLocalAdapter(host, channel, label, user, pw)
 
     raise DeviceError(f"Unknown device kind '{kind}' for '{label}'.")
+
+
+def _is_owner_household(household_id: str | None) -> bool:
+    """Whether this household is the one the server operator runs for itself.
+
+    Environment credentials (SHELLY_CLOUD_*, KASA_*) are the operator's own
+    account. They are a convenience for the household that owns the
+    deployment, and must never stand in for a paired user's missing
+    credentials — that is how one account's device ends up acting through
+    another account's key.
+
+    Defaults to False: an unknown or absent household gets no environment
+    credentials at all.
+    """
+    owner = os.environ.get("KROVEN_HOUSEHOLD_ID", "").strip()
+    return bool(owner and household_id and str(household_id).strip() == owner)
 
 
 def _as_url(host: str) -> str:

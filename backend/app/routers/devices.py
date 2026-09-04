@@ -19,6 +19,7 @@ import os
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
+from app.db import get_db
 from app.device_registry import control_device, list_devices, resolve_device
 
 router = APIRouter()
@@ -74,10 +75,22 @@ async def get_devices(household_id: str):
     out = []
     for d in devices:
         state = await control_device(d["id"], "status", household_id)
+        meta = d.get("meta") or {}
         out.append({
             "id": d["id"],
             "name": d["name"],
             "kind": d["kind"],
+            # The plug itself: real model reported by the vendor at pairing, not
+            # a guess. Shown so the user can tell which physical unit this row
+            # is when they own more than one.
+            "model": meta.get("model"),
+            "gen": meta.get("gen"),
+            # What the user says is plugged into it. Kroven cannot work this out
+            # on its own — see set_appliance below — so it is stored, not
+            # inferred, and clearly presented as their label rather than a
+            # detection.
+            "appliance": meta.get("appliance"),
+            "expected_watts": meta.get("expected_watts"),
             # Consumers must not feed aggregate traces to per-device models.
             "signal_type": d.get("signal_type", "dedicated"),
             "controllable": d.get("controllable", True),
@@ -101,6 +114,48 @@ async def control(device_id: str, req: ControlRequest, household_id: str,
         code = 404 if "not registered" in result["detail"] else 502
         raise HTTPException(status_code=code, detail=result["detail"])
     return {**result, "reason": req.reason}
+
+
+class ApplianceRequest(BaseModel):
+    appliance: str | None = None
+    expected_watts: float | None = None
+
+
+@router.post("/{device_id}/appliance")
+async def set_appliance(device_id: str, req: ApplianceRequest, household_id: str):
+    """Record what the user says is plugged into a plug.
+
+    Deliberately a label, not a detection. Working out an appliance from a
+    single plug's power trace is a real research problem (non-intrusive load
+    monitoring): it needs a classifier trained on labelled examples of that
+    appliance, and this household has none — every sample collected so far
+    tops out at 30 W, which is a phone charger on an extension cord, not a
+    console. Guessing from that would be inventing a capability.
+
+    What the label DOES buy is a sanity check. Once Kroven knows what should be
+    connected and roughly what it draws, it can say "this reads 0 W but a PS5
+    idles near 40 W, so it is probably not plugged in" — which is the question
+    actually being asked, and is answerable from one number.
+    """
+    from app.device_registry import get_device
+    device = get_device(household_id, device_id)
+    if device is None:
+        raise HTTPException(status_code=404, detail="That device is not registered.")
+
+    meta = dict(device.get("meta") or {})
+    if req.appliance is not None:
+        meta["appliance"] = req.appliance.strip() or None
+    if req.expected_watts is not None:
+        meta["expected_watts"] = float(req.expected_watts)
+
+    try:
+        get_db().table("devices").update({"meta": meta}).eq("id", device_id).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not save: {type(e).__name__}") from e
+
+    device["meta"] = meta
+    return {"ok": True, "appliance": meta.get("appliance"),
+            "expected_watts": meta.get("expected_watts")}
 
 
 @router.post("/resolve")

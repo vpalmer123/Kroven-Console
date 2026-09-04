@@ -104,17 +104,41 @@ async def verify_token(token: str) -> dict[str, Any]:
 
 
 def households_for(user_id: str) -> list[str]:
-    """Household ids this user owns."""
+    """Household ids this user owns, best first.
+
+    Order matters and used not to be specified. A user can end up owning more
+    than one household — signing up creates an empty one, and claiming an
+    existing household adds a second — and with no ordering the database was
+    free to return either first. Whichever came back became "their" household,
+    so the same account could land on 2000 readings one day and a blank console
+    the next.
+
+    So the one that actually holds data wins, and ties break on age. Ordering
+    alone would not have been enough: the empty household is created first, so
+    "oldest" would reliably pick the wrong one.
+    """
     hit = _household_cache.get(user_id)
     now = time.monotonic()
     if hit and now < hit[0]:
         return hit[1]
     try:
+        db = get_db()
         rows = (
-            get_db().table("households").select("household_id")
-            .eq("owner_id", user_id).execute().data
+            db.table("households").select("household_id,created_at")
+            .eq("owner_id", user_id).order("created_at").execute().data
         ) or []
         ids = [r["household_id"] for r in rows]
+
+        if len(ids) > 1:
+            def reading_count(hid: str) -> int:
+                try:
+                    r = (db.table("energy_readings").select("id", count="exact")
+                         .eq("household_id", hid).limit(1).execute())
+                    return r.count or 0
+                except Exception:
+                    return 0
+            # Stable: sorted() keeps created_at order among equal counts.
+            ids = sorted(ids, key=lambda h: -reading_count(h))
     except Exception as e:
         # Almost always means migration 008 has not been applied. Say so,
         # because the symptom otherwise is "sign-in silently fails" with

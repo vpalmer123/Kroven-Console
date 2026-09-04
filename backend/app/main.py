@@ -23,7 +23,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers import forecast, energy_data, chat, rates, devices, signals, activity, dashboard, mapconfig, regions, access, session
-from app.security import allowed_origins, docs_enabled, rate_limit_middleware
+from app.security import (allowed_origin_regex, allowed_origins, docs_enabled,
+                          rate_limit_middleware)
 
 # /docs and /openapi.json are off unless KROVEN_ENABLE_DOCS is set. FastAPI
 # publishes both by default, which hands any visitor a complete map of the API,
@@ -47,6 +48,9 @@ app.middleware("http")(rate_limit_middleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins(),
+    # Netlify serves each draft deploy from its own origin; without this,
+    # locking to the production domain blocks every preview.
+    allow_origin_regex=allowed_origin_regex(),
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type"],
 )

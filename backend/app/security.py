@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 from collections import defaultdict, deque
 
@@ -231,6 +232,37 @@ def allowed_origins() -> list[str]:
         )
         return ["*"]
     return [o.strip() for o in raw.split(",") if o.strip()]
+
+
+def allowed_origin_regex() -> str | None:
+    """Also allow Netlify's per-deploy preview origins.
+
+    A draft deploy is served from https://<deploy-id>--<site>.netlify.app,
+    which is a different origin from the production domain. Locking CORS to the
+    production origin alone therefore blocks every preview — including the ones
+    used to test a change before it ships, which is precisely when the API
+    needs to be reachable. The symptom is not an error message either: the
+    browser blocks the request, the page's fetch rejects, and whatever the
+    frontend does on failure happens instead. Here that meant the login gate
+    quietly removed itself.
+
+    Derived from the configured origins rather than being one more variable to
+    set and forget. KROVEN_ALLOWED_ORIGIN_REGEX overrides it if a different
+    host ever needs the same treatment.
+    """
+    override = os.environ.get("KROVEN_ALLOWED_ORIGIN_REGEX", "").strip()
+    if override:
+        return override
+
+    sites = set()
+    for origin in allowed_origins():
+        m = re.match(r"^https://([a-z0-9-]+)\.netlify\.app/?$", origin.strip(), re.I)
+        if m:
+            sites.add(re.escape(m.group(1)))
+    if not sites:
+        return None
+    # e.g. https://6a9a3528f4bdfe838916e26a--krovens.netlify.app
+    return rf"^https://[a-z0-9]+--(?:{'|'.join(sorted(sites))})\.netlify\.app$"
 
 
 def docs_enabled() -> bool:

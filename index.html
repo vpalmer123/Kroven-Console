@@ -268,7 +268,48 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
   var mode = "signin";
 
   function show() { box.style.display = "flex"; setTimeout(function(){ email.focus(); }, 60); }
-  function hide() { box.parentNode && box.parentNode.removeChild(box); }
+  function hide() {
+    box.parentNode && box.parentNode.removeChild(box);
+    addAccountChip();
+  }
+
+  // Signed-in indicator and sign-out. Injected here rather than added to the
+  // console's header because that header lives in a prebuilt bundle that
+  // cannot take structural edits. Deliberately small and low-contrast: it is a
+  // utility, not part of the interface being demonstrated.
+  function addAccountChip() {
+    if (document.getElementById("kroven-acct")) return;
+    // hide() also runs when auth is unavailable, so check there is really a
+    // session before offering to end one.
+    if (!localStorage.getItem(TK)) return;
+    var who = localStorage.getItem(EM) || "";
+    var wrap = document.createElement("div");
+    wrap.id = "kroven-acct";
+    wrap.style.cssText = "position:fixed;top:10px;right:12px;z-index:2147483000;" +
+      "display:flex;align-items:center;gap:8px;font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;" +
+      "font-size:11px;color:#5C6B85;background:rgba(20,28,44,.82);border:1px solid #24304A;" +
+      "border-radius:999px;padding:5px 10px;backdrop-filter:blur(6px);user-select:none";
+    var label = document.createElement("span");
+    label.textContent = who;
+    label.style.cssText = "max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
+    var out = document.createElement("button");
+    out.textContent = "Sign out";
+    out.style.cssText = "border:0;background:transparent;color:#7D8CA6;font-size:11px;" +
+      "font-weight:600;cursor:pointer;padding:0;font-family:inherit";
+    out.addEventListener("mouseenter", function () { out.style.color = "#E8EDF7"; });
+    out.addEventListener("mouseleave", function () { out.style.color = "#7D8CA6"; });
+    out.addEventListener("click", function () {
+      // Clear the household too: leaving it behind would start the next
+      // sign-in pointing at the previous account's data.
+      localStorage.removeItem(TK);
+      localStorage.removeItem(HH);
+      localStorage.removeItem(EM);
+      location.reload();
+    });
+    if (who) wrap.appendChild(label);
+    wrap.appendChild(out);
+    (document.body || document.documentElement).appendChild(wrap);
+  }
   function say(t, ok) { msg.style.color = ok ? "#5BD98A" : "#FF6B6B"; msg.textContent = t || ""; }
 
   function setMode(m) {

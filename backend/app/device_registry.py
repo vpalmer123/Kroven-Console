@@ -375,6 +375,11 @@ async def control_device(device_id: str, action: str,
             household_id=device.get("household_id") or household,
         )
     except DeviceError as e:
+        # Half-written credentials are a state the user has to resolve, not a
+        # transient failure, so it is recorded on the device rather than only
+        # returned once and forgotten.
+        if getattr(e, "needs_repair", False):
+            _flag_needs_repair(device)
         return _fail(device_id, device, action, str(e))
 
     try:
@@ -418,6 +423,22 @@ async def control_device(device_id: str, action: str,
         "power_w": state.get("power_w"),
         "detail": f"{name} is {'on' if on else 'off'}.",
     }
+
+
+def _flag_needs_repair(device: dict) -> None:
+    """Record that a device's stored credentials are incomplete."""
+    device_id = str(device.get("id", ""))
+    meta = dict(device.get("meta") or {})
+    if meta.get("needs_repair"):
+        return
+    meta["needs_repair"] = True
+    device["meta"] = meta
+    if device_id.startswith("env:"):
+        return
+    try:
+        get_db().table("devices").update({"meta": meta}).eq("id", device_id).execute()
+    except Exception as e:
+        logger.warning("could not flag %s for repair: %s", device_id, type(e).__name__)
 
 
 def _fail(device_id: str, device: dict | None, action: str, detail: str) -> dict[str, Any]:

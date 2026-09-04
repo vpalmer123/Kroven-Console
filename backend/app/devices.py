@@ -37,6 +37,68 @@ TIMEOUT = 10.0
 class DeviceError(RuntimeError):
     """Raised when the physical device could not be read or actuated."""
 
+    def __init__(self, message: str, needs_repair: bool = False):
+        super().__init__(message)
+        # Set when the stored credentials are half-written, so the caller can
+        # flag the device for re-pairing rather than just reporting a failure
+        # the user has no way to interpret.
+        self.needs_repair = needs_repair
+
+
+# The regional API host is an address, not a secret — it is printed next to the
+# key in the Shelly app and identifies infrastructure, not an account. Falling
+# back to a default therefore mixes nothing, which is why only the key and the
+# device id are held to the all-or-nothing rule below.
+DEFAULT_SHELLY_SERVER = "https://shelly-api-eu.shelly.cloud"
+
+
+def _shelly_credentials(meta: dict, label: str, owner: bool) -> tuple[str, str, str]:
+    """Resolve Shelly cloud credentials, all-or-nothing, from a single source.
+
+    Three cases, and nothing between them:
+
+      own      the device carries its own key and device id -> use only those,
+               never touching the environment for any field
+      legacy   the device carries none of the three -> the operator's own
+               environment credentials, and only for the operator's household
+      broken   the device carries some but not all -> refuse, and say the
+               device needs reconnecting
+
+    The middle case is the dangerous one and is why this exists. Resolving each
+    field independently let them come from different accounts: a user's device
+    with a key but no device id used to inherit the operator's SHELLY_DEVICE_ID
+    and actuate the operator's plug.
+    """
+    server = (meta.get("cloud_server") or "").strip()
+    key = (meta.get("cloud_auth_key") or "").strip()
+    dev_id = (meta.get("cloud_device_id") or "").strip()
+
+    if key and dev_id:
+        # The device owns its credentials. A missing server is filled from the
+        # default, never from the environment, so no account can leak into it.
+        return (server or DEFAULT_SHELLY_SERVER), key, dev_id
+
+    if key or dev_id or server:
+        raise DeviceError(
+            f"'{label}' is only half connected — its saved credentials are "
+            f"incomplete. Reconnect it from Connect Device.",
+            needs_repair=True,
+        )
+
+    if not owner:
+        return "", "", ""
+
+    env = (
+        os.environ.get("SHELLY_CLOUD_SERVER", "").strip(),
+        os.environ.get("SHELLY_CLOUD_AUTH_KEY", "").strip(),
+        os.environ.get("SHELLY_DEVICE_ID", "").strip(),
+    )
+    # Complete set or nothing: a half-configured environment must not be
+    # completed from anywhere else either.
+    if env[1] and env[2]:
+        return (env[0] or DEFAULT_SHELLY_SERVER), env[1], env[2]
+    return "", "", ""
+
 
 class ShellyCloudAdapter:
     transport = "cloud"
@@ -270,30 +332,7 @@ def build_adapter(kind: str, host: str, channel: int = 0, label: str = "plug",
         # SHELLY_DEVICE_ID, so one user's device could actuate the operator's
         # plug. Partial stored credentials are now an error, not something to
         # quietly complete from someone else's configuration.
-        stored = (
-            (meta.get("cloud_server") or "").strip(),
-            (meta.get("cloud_auth_key") or "").strip(),
-            (meta.get("cloud_device_id") or "").strip(),
-        )
-        if all(stored):
-            server, auth_key, device_id = stored
-        elif any(stored):
-            raise DeviceError(
-                f"'{label}' has incomplete stored credentials. Reconnect it from "
-                f"Connect Device to fix."
-            )
-        elif owner:
-            # Environment credentials belong to whoever runs the server, so
-            # they are only ever used for that operator's own household — never
-            # as a fallback for a paired user.
-            env = (
-                os.environ.get("SHELLY_CLOUD_SERVER", "").strip(),
-                os.environ.get("SHELLY_CLOUD_AUTH_KEY", "").strip(),
-                os.environ.get("SHELLY_DEVICE_ID", "").strip(),
-            )
-            server, auth_key, device_id = env if all(env) else ("", "", "")
-        else:
-            server = auth_key = device_id = ""
+        server, auth_key, device_id = _shelly_credentials(meta, label, owner)
 
         # Cloud wins when it is configured, even though LAN is faster.
         #
@@ -320,13 +359,26 @@ def build_adapter(kind: str, host: str, channel: int = 0, label: str = "plug",
     if kind == "kasa":
         if not host:
             raise DeviceError(f"No address configured for '{label}'.")
-        # Same rule as Shelly: the operator's TP-Link account is never used to
-        # authenticate against a paired user's hardware.
+        # Identical rule to Shelly, because it had the identical bug: the
+        # operator's TP-Link login must never authenticate against a paired
+        # user's hardware, and half a stored login must never be completed
+        # from the environment.
         user = (meta.get("username") or "").strip()
         pw = (meta.get("password") or "").strip()
-        if not (user or pw) and owner:
-            user = os.environ.get("KASA_USERNAME", "")
-            pw = os.environ.get("KASA_PASSWORD", "")
+
+        if user and pw:
+            pass                                    # device owns its login
+        elif user or pw:
+            raise DeviceError(
+                f"'{label}' is only half connected — its saved credentials are "
+                f"incomplete. Reconnect it from Connect Device.",
+                needs_repair=True,
+            )
+        elif owner:
+            env_user = os.environ.get("KASA_USERNAME", "").strip()
+            env_pw = os.environ.get("KASA_PASSWORD", "").strip()
+            user, pw = (env_user, env_pw) if (env_user and env_pw) else ("", "")
+
         return KasaLocalAdapter(host, channel, label, user, pw)
 
     raise DeviceError(f"Unknown device kind '{kind}' for '{label}'.")

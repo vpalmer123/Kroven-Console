@@ -52,7 +52,12 @@ app.add_middleware(
     # locking to the production domain blocks every preview.
     allow_origin_regex=allowed_origin_regex(),
     allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type"],
+    # Authorization is not optional here: every call after sign-in carries a
+    # bearer token, and a header the browser is not told it may send fails the
+    # preflight. The request never reaches the server, so the logs stay clean
+    # and the page just reports "Failed to fetch" — which is why this looked
+    # like the backend being down rather than a CORS rejection.
+    allow_headers=["Content-Type", "Authorization", "X-Kroven-Control"],
 )
 
 app.include_router(energy_data.router, prefix="/api/energy", tags=["energy"])

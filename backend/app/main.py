@@ -22,7 +22,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import forecast, energy_data, chat, rates, devices, signals, activity, dashboard, mapconfig, regions, access
+from app.routers import forecast, energy_data, chat, rates, devices, signals, activity, dashboard, mapconfig, regions, access, session
 from app.security import allowed_origins, docs_enabled, rate_limit_middleware
 
 # /docs and /openapi.json are off unless KROVEN_ENABLE_DOCS is set. FastAPI
@@ -62,6 +62,7 @@ app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"]
 app.include_router(mapconfig.router, prefix="/api/mapconfig", tags=["map"])
 app.include_router(regions.router, prefix="/api/regions", tags=["regions"])
 app.include_router(access.router, prefix="/api/access", tags=["access"])
+app.include_router(session.router, prefix="/api/auth", tags=["auth"])
 
 
 @app.on_event("startup")

@@ -16,9 +16,10 @@ import re
 from datetime import datetime
 
 import httpx
-from fastapi import APIRouter
+from fastapi import APIRouter, Header
 from pydantic import BaseModel
 
+from app.auth import AuthError, auth_required, require_household
 from app.db import get_db
 from app.device_registry import control_device, list_devices, resolve_device
 from app.device_router import classify as classify_device_intent
@@ -396,8 +397,31 @@ def _build_messages(req: "ChatRequest") -> list[dict]:
     return msgs[-20:]
 
 
+def _assistant_says(text: str) -> dict:
+    """Shape a plain message the console can render.
+
+    Auth problems come back as an assistant turn rather than a 4xx: the console
+    renders whatever it gets, so an HTTP error shows up as a broken bubble
+    while this reads as an explanation.
+    """
+    return {
+        "type": "message", "role": "assistant", "model": MODEL,
+        "stop_reason": "end_turn",
+        "content": [{"type": "text", "text": text}],
+    }
+
+
 @router.post("")
-async def chat(req: ChatRequest):
+async def chat(req: ChatRequest, authorization: str | None = Header(default=None)):
+    # Accounts, when enabled. The household id in the body is a claim the
+    # caller makes, so it is checked against what they actually own — otherwise
+    # sending someone else's id is enough to read their data.
+    if auth_required():
+        try:
+            req.household_id = await require_household(authorization, req.household_id)
+        except AuthError as e:
+            return _assistant_says(str(e))
+
     # Checked before anything else, because everything below this line either
     # queries the database or spends money with Anthropic.
     #

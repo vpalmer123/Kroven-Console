@@ -120,6 +120,12 @@ def _harden(response):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["X-Frame-Options"] = "DENY"
+    # The API is HTTPS-only on Railway; say so, so a downgrade cannot be
+    # attempted on a later visit.
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    # An API response is never a document and never needs a browser feature.
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Cross-Origin-Resource-Policy"] = "same-site"
     return response
 
 
@@ -225,13 +231,18 @@ def allowed_origins() -> list[str]:
     rate limits above apply either way, so the money is bounded regardless.
     """
     raw = os.environ.get("KROVEN_ALLOWED_ORIGINS", "").strip()
-    if not raw:
-        logger.warning(
-            "KROVEN_ALLOWED_ORIGINS is not set - any website can call this API "
-            "from a visitor's browser. Set it to the console's origin."
-        )
-        return ["*"]
-    return [o.strip() for o in raw.split(",") if o.strip()]
+    if raw:
+        return [o.strip() for o in raw.split(",") if o.strip()]
+
+    # Unset used to mean "*", which was deliberate while the console was being
+    # handed around and nobody knew the final origin. That is no longer true,
+    # and a wildcard on an API that switches hardware is not a default worth
+    # keeping. Falls back to the known production origin instead, and says so.
+    logger.error(
+        "KROVEN_ALLOWED_ORIGINS is not set. Defaulting to the production "
+        "console origin only. Set it explicitly."
+    )
+    return ["https://krovens.netlify.app"]
 
 
 def allowed_origin_regex() -> str | None:

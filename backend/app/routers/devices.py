@@ -13,6 +13,7 @@ Reports honestly when nothing is registered or a device is unreachable, so the
 UI can never imply control it does not have.
 """
 
+import asyncio
 import hmac
 import os
 from datetime import datetime, timezone
@@ -78,9 +79,30 @@ async def get_devices(household_id: str):
             "detail": "No devices registered for this household.",
         }
 
+    # Hardware with no working integration is never polled. The Kasa plug
+    # cannot answer at all, and waiting for its discovery to time out cost
+    # about five seconds on every single load of the console — for a row the
+    # UI then hides. Unsupported devices are reported from their stored state
+    # instead.
+    #
+    # The rest are polled concurrently: two sequential cloud round-trips is
+    # two round-trips of latency for no reason.
+    supported = [d for d in devices if (d.get("kind") or "").lower() in SUPPORTED_KINDS]
+    states = dict(zip(
+        [d["id"] for d in supported],
+        await asyncio.gather(*[
+            control_device(d["id"], "status", household_id) for d in supported
+        ]) if supported else [],
+    ))
+
     out = []
     for d in devices:
-        state = await control_device(d["id"], "status", household_id)
+        state = states.get(d["id"]) or {
+            "ok": False,
+            "state": d.get("state"),
+            "power_w": d.get("power_w"),
+            "detail": "This hardware has no supported integration yet.",
+        }
         meta = d.get("meta") or {}
         out.append({
             "id": d["id"],

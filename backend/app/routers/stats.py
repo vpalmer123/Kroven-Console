@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Header, HTTPException
 
 from app.db import get_db
 
@@ -37,7 +37,22 @@ def _count(db, table: str) -> int | None:
 
 
 @router.get("")
-async def public_stats():
+async def public_stats(authorization: str | None = Header(default=None)):
+    """Counts for a signed-in user.
+
+    Was public while the login page displayed them. It no longer does, and an
+    unauthenticated endpoint that reports how many households and devices
+    exist is free reconnaissance for anyone probing the service — small, but
+    there is no longer any reason to give it away.
+    """
+    from app.auth import AuthError, auth_required, require_household
+
+    if auth_required():
+        try:
+            await require_household(authorization, None)
+        except AuthError as e:
+            raise HTTPException(status_code=401, detail=str(e)) from e
+
     db = get_db()
     out: dict = {"generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
 

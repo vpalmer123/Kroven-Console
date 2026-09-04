@@ -22,3 +22,42 @@
   for = "/index.html"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
+
+# Browser-enforced hardening. These apply to the page itself, which is where
+# an attack would actually land — the API already sets its own headers, but a
+# stolen session is taken from the browser, not from the server.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # No other site may frame this. Without it, a page can be loaded invisibly
+    # inside an attacker's frame and a user tricked into clicking controls that
+    # switch real hardware.
+    X-Frame-Options = "DENY"
+    Content-Security-Policy = """
+      default-src 'self';
+      script-src 'self' 'unsafe-inline';
+      style-src 'self' 'unsafe-inline';
+      img-src 'self' data: blob:;
+      font-src 'self' data:;
+      connect-src 'self' https://kroven-console-production.up.railway.app https://api.weather.gov;
+      frame-ancestors 'none';
+      form-action 'self';
+      base-uri 'self';
+      object-src 'none';
+      upgrade-insecure-requests
+    """
+    # Once seen, never speak to this host over plain HTTP again — including the
+    # first request of a later visit, which is the one a network attacker wants.
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options = "nosniff"
+    # The URL can carry a household id; do not hand it to third-party sites.
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    # The app needs none of these, so nothing embedded in it may ask.
+    Permissions-Policy = "camera=(), microphone=(), payment=(), usb=(), magnetometer=(), gyroscope=(), interest-cohort=()"
+
+# 'unsafe-inline' for scripts is not an oversight: the console is a prebuilt
+# bundle of inline scripts that cannot be rewritten to use nonces without
+# rebuilding the frontend from source. The rest of the policy still does real
+# work — frame-ancestors, object-src, base-uri and form-action all close
+# avenues that do not depend on inline script being blocked. Worth revisiting
+# whenever the frontend is rebuilt.

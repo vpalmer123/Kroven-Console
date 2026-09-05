@@ -33,13 +33,20 @@
     # inside an attacker's frame and a user tricked into clicking controls that
     # switch real hardware.
     X-Frame-Options = "DENY"
+    # Mapbox is allowed explicitly rather than by loosening the policy: the
+    # console's base map is Mapbox GL, which needs its script, its stylesheet,
+    # its tile/style API, and a blob: worker for tile decoding. Without these
+    # named, the map silently fails to load even once a token is configured —
+    # the CSP blocks it and nothing says why.
     Content-Security-Policy = """
       default-src 'self';
-      script-src 'self' 'unsafe-inline';
-      style-src 'self' 'unsafe-inline';
-      img-src 'self' data: blob:;
+      script-src 'self' 'unsafe-inline' https://api.mapbox.com;
+      style-src 'self' 'unsafe-inline' https://api.mapbox.com;
+      worker-src 'self' blob:;
+      child-src 'self' blob:;
+      img-src 'self' data: blob: https://api.mapbox.com;
       font-src 'self' data:;
-      connect-src 'self' https://kroven-console-production.up.railway.app https://api.weather.gov;
+      connect-src 'self' https://kroven-console-production.up.railway.app https://api.weather.gov https://api.mapbox.com https://events.mapbox.com;
       frame-ancestors 'none';
       form-action 'self';
       base-uri 'self';

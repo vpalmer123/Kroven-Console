@@ -334,6 +334,73 @@ async def restore_power(device_id: str, household_id: str):
     return result
 
 
+class ProposeRequest(BaseModel):
+    command: str                       # on | off | toggle
+
+
+@router.post("/{device_id}/propose")
+async def propose_control(device_id: str, req: ProposeRequest, household_id: str,
+                          authorization: str | None = Header(default=None)):
+    """Stage a control request. Dispatches nothing.
+
+    This is the only way the console asks for a switch. It returns an action id
+    and the physical consequence; the command is sent only when that id comes
+    back to /confirm.
+    """
+    from app.actions import propose
+    user_id = await _caller_id(authorization)
+    result = await propose(household_id, device_id, req.command, user_id=user_id)
+    if not result["ok"] and not result.get("already"):
+        raise HTTPException(status_code=409, detail=result["detail"])
+    return result
+
+
+class ConfirmRequest(BaseModel):
+    action_id: str
+
+
+@router.post("/confirm")
+async def confirm_control(req: ConfirmRequest, household_id: str,
+                          authorization: str | None = Header(default=None)):
+    """Dispatch a staged action, if it is still valid for this caller.
+
+    Deliberately not behind KROVEN_CONTROL_TOKEN: the authorization here is the
+    pending action itself — bound to a user, single-use, expiring, and
+    invalidated if the device moved. A shared server secret would be weaker,
+    not stronger, since it is the same for every request and every user.
+    """
+    from app.actions import confirm
+    user_id = await _caller_id(authorization)
+    result = await confirm(household_id, req.action_id, user_id=user_id)
+    if not result["ok"]:
+        raise HTTPException(status_code=409, detail=result["detail"])
+    return result
+
+
+@router.get("/pending")
+async def pending(household_id: str,
+                  authorization: str | None = Header(default=None)):
+    """Actions staged and still awaiting confirmation."""
+    from app.actions import expire_stale, open_actions
+    expire_stale(household_id)
+    user_id = await _caller_id(authorization)
+    return {"pending": open_actions(household_id, user_id)}
+
+
+async def _caller_id(authorization: str | None) -> str | None:
+    """The authenticated user, when auth is on. Staged actions bind to it."""
+    from app.auth import auth_required, bearer_token, verify_token
+    if not auth_required():
+        return None
+    tok = bearer_token(authorization)
+    if not tok:
+        return None
+    try:
+        return (await verify_token(tok)).get("id")
+    except Exception:
+        return None
+
+
 @router.get("/events")
 async def automation_events(household_id: str, limit: int = 25):
     """Audit trail of automated actions, newest first."""

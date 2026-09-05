@@ -22,6 +22,8 @@ from pydantic import BaseModel
 from app.auth import AuthError, auth_required, require_household
 from app.db import get_db
 from app.device_registry import control_device, list_devices, resolve_device
+from app.actions import (confirm as confirm_action, propose as propose_action,
+                         resolve_bare_confirmation)
 from app.device_router import classify as classify_device_intent
 from app.intent import Domain, classify as classify_intent
 from app.usage_stats import (by_device as usage_by_device, fetch as fetch_readings,
@@ -37,6 +39,11 @@ ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 MODEL = "claude-sonnet-4-6"
 MAX_TOOL_ROUNDS = 4
 
+# Read-only on purpose. There is deliberately no tool that switches anything:
+# dispatch belongs to app.actions, behind a pending action the server has to
+# confirm. Giving the model a switch tool would put it back in charge of
+# deciding when power gets cut, which is the exact hole the action layer
+# exists to close.
 TOOLS = [
     {
         "name": "get_device_state",
@@ -57,33 +64,6 @@ TOOLS = [
                 },
             },
             "required": [],
-        },
-    },
-    {
-        "name": "set_device_switch",
-        "description": (
-            "Physically switch one of the household's registered devices on or off. This "
-            "actuates real hardware in the user's home — the load actually loses or "
-            "regains power. Only devices listed as switchable can be controlled. Always "
-            "state plainly what you switched and why."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "device": {
-                    "type": "string",
-                    "description": "Name of the device, from the registered list.",
-                },
-                "on": {
-                    "type": "boolean",
-                    "description": "true to power it on, false to cut power.",
-                },
-                "reason": {
-                    "type": "string",
-                    "description": "Short reason tied to rates or usage, shown to the user.",
-                },
-            },
-            "required": ["device", "on", "reason"],
         },
     },
 ]
@@ -241,7 +221,12 @@ async def _run_tool(name: str, args: dict, db, household_id: str) -> tuple[str, 
     if name == "save_home_profile":
         return _save_profile(db, household_id, args)
 
-    if name not in ("get_device_state", "set_device_switch"):
+    if name == "set_device_switch":
+        # Older prompts may still try. Refuse rather than dispatch.
+        return ("You cannot switch devices yourself. A control request stages a "
+                "pending action that the person must confirm first. Tell them what "
+                "would happen and ask them to confirm.", True)
+    if name != "get_device_state":
         return (f"Unknown tool: {name}", True)
 
     # Device errors are written for an engineer reading logs. Anything handed
@@ -283,18 +268,12 @@ async def _run_tool(name: str, args: dict, db, household_id: str) -> tuple[str, 
             True,
         )
 
-    action = "status" if name == "get_device_state" else ("on" if args.get("on") else "off")
-    result = await control_device(match["device"]["id"], action, household_id)
+    result = await control_device(match["device"]["id"], "status", household_id)
 
     if not result["ok"]:
         return (f"Device command failed: {result['detail']}{plain}", True)
-    if action == "status":
-        return (f"{result['device']} is {result['state']}, drawing {result['power_w']} W.", False)
-    return (
-        f"Switched {result['device']} {action}. Hardware confirms it is now "
-        f"{result['state']}, drawing {result['power_w']} W.",
-        False,
-    )
+    return (f"{result['device']} is {result['state']}, drawing {result['power_w']} W.", False)
+
 
 
 def _has_text(payload: dict) -> bool:
@@ -419,9 +398,14 @@ async def chat(req: ChatRequest, authorization: str | None = Header(default=None
     # Accounts, when enabled. The household id in the body is a claim the
     # caller makes, so it is checked against what they actually own — otherwise
     # sending someone else's id is enough to read their data.
+    authenticated_user_id = None
     if auth_required():
         try:
             req.household_id = await require_household(authorization, req.household_id)
+            from app.auth import bearer_token, verify_token
+            tok = bearer_token(authorization)
+            if tok:
+                authenticated_user_id = (await verify_token(tok)).get("id")
         except AuthError as e:
             return _assistant_says(str(e))
 
@@ -523,87 +507,99 @@ async def chat(req: ChatRequest, authorization: str | None = Header(default=None
     device_route = await classify_device_intent(req.message, req.household_id,
                                             req.history or [])
 
-    # Proposing is not doing. A command switches real power, so the first
-    # request states what would happen and waits; only an explicit agreement
-    # to that proposal actuates. Without this, "turn off the ps5" cut power
-    # mid-sentence and the user found out afterwards.
+    # The assistant proposes; the server decides. A control request only ever
+    # stages a pending action here — dispatch requires app.actions.confirm(),
+    # which checks the action id, the user, expiry, single use and whether the
+    # device has moved since. The classifier's opinion that a message "sounds
+    # like a yes" is not authorization for cutting power to a home.
     if (device_route["category"] == "DEVICE_CONTROL"
             and not device_route["needs_clarification"]
             and not device_route.get("confirming")):
-        target = device_route["device"]
-        act = device_route["action"]
-        live = await control_device(device_route["device_id"], "status", req.household_id)
-        if not live["ok"]:
+        staged = await propose_action(
+            req.household_id, device_route["device_id"], device_route["action"],
+            user_id=authenticated_user_id,
+        )
+        if staged.get("already"):
             domain_blocks.append(
-                f"CANNOT ACT: they asked to switch the {target} {act}, but it cannot be "
-                f"reached right now. Internal reason: {live['detail']}\n"
-                f"Say in one line that you can't reach it, in plain words — no protocol "
-                f"names or error codes — and do not claim anything was switched."
+                f"ALREADY IN THAT STATE: {staged['detail']} Say so in one line. "
+                f"Nothing was staged and nothing needs confirming."
             )
-        elif live["state"] == act:
+        elif not staged["ok"]:
             domain_blocks.append(
-                f"ALREADY IN THAT STATE: the {target} is already {act} "
-                f"(drawing {live['power_w']} W). Say so in one line. Do not switch "
-                f"anything and do not ask for confirmation."
+                f"CANNOT ACT: nothing was staged. Internal reason: {staged['detail']}\n"
+                f"Say in one line, plainly, that you can't do it — no protocol names "
+                f"or error codes — and never imply anything was switched."
             )
         else:
-            consequence = (
-                "power will actually be cut to whatever is plugged into it, so anything "
-                "mid-task can be interrupted"
-                if act == "off" else
-                "mains power comes back, though the device itself may still need "
-                "switching on by hand"
-            )
             domain_blocks.append(
-                f"CONFIRMATION NEEDED — DO NOT ACT YET: they asked to switch the "
-                f"{target} {act}. It is currently {live['state']}, drawing "
-                f"{live['power_w']} W.\n"
-                f"In ONE short line: say what you are about to do, state plainly that "
-                f"{consequence}, and ask them to confirm. Do NOT say it is done, do NOT "
-                f"use past tense, and do NOT call a tool. Nothing has happened yet."
+                f"AWAITING CONFIRMATION — NOTHING HAS HAPPENED: a pending action is "
+                f"staged to switch {staged['device']} {staged['command']}. It is "
+                f"currently {staged['current_state']}.\n"
+                f"Physical consequence to convey: {staged['consequence']}\n"
+                f"In ONE short line, say what you are about to do, state that "
+                f"consequence plainly, and ask them to confirm. It expires in about "
+                f"{staged['expires_in_seconds'] // 60} minutes. Do NOT use past tense, "
+                f"do NOT say it is done, and do NOT call a tool — you cannot switch "
+                f"anything yourself."
             )
 
     elif device_route["category"] == "DEVICE_CONTROL" and not device_route["needs_clarification"]:
-        # Act first, then let the model narrate what actually happened. The
-        # outcome is the hardware's answer, never the request echoed back.
-        outcome = await control_device(
-            device_route["device_id"], device_route["action"], req.household_id
-        )
-        if outcome["ok"]:
-            # Restoring power is not switching a device on. Closing a relay
-            # re-energises the socket; a console, a desktop, most AV gear all
-            # stay off until someone presses something. Saying "turned it on"
-            # is how a person discovers hours later that a download never
-            # resumed.
-            did = ("cut power to" if device_route["action"] == "off"
+        # An agreement. It still has to resolve to exactly one staged action
+        # belonging to this user before anything is dispatched.
+        picked = resolve_bare_confirmation(req.household_id, authenticated_user_id)
+        if not picked["ok"]:
+            domain_blocks.append(
+                f"NOTHING TO CONFIRM: {picked['detail']} Say that in one line. Do not "
+                f"switch anything and do not treat this as a new command."
+            )
+            outcome = {"ok": False, "detail": picked["detail"], "_handled": True}
+        else:
+            outcome = await confirm_action(
+                req.household_id, picked["action"]["id"], user_id=authenticated_user_id
+            )
+        if outcome.get("_handled"):
+            pass                    # nothing was staged; already explained above
+        elif outcome["ok"] and outcome.get("verified"):
+            # Verified means two things agreed: the provider acknowledged the
+            # command, AND a fresh read of the device matched. Anything less is
+            # reported as uncertain rather than as done.
+            #
+            # Restoring power is also not switching a device on. Closing a
+            # relay re-energises a socket; a console or desktop stays off until
+            # someone presses something, and claiming otherwise is how a person
+            # finds out hours later that a download never resumed.
+            did = ("cut power to" if outcome["command"] == "off"
                    else "restored power to")
-            caveat = ("" if device_route["action"] == "off" else
+            caveat = ("" if outcome["command"] == "off" else
                       " Add that the device itself may still need switching on by "
                       "hand — you restored power, you did not turn the device on. "
                       "Never write 'turned it on'.")
             reading = (
-                f" The hardware reports {outcome['power_w']} W."
+                f" It reads {outcome['power_w']} W."
                 if isinstance(outcome.get("power_w"), (int, float))
-                and not (outcome["state"] == "off" and (outcome["power_w"] or 0) > 1)
-                else " Do not quote a wattage: the reading right after a switch is "
-                     "stale and may contradict the switch state."
+                else " Do not quote a wattage: the reading contradicts the switch "
+                     "state and is still settling."
             )
             domain_blocks.append(
-                f"ACTION ALREADY TAKEN: you {did} the {outcome['device']}. The hardware "
-                f"confirms it is now {outcome['state']}.{reading} Tell them in one short "
-                f"line, past tense, as something you did.{caveat} Do not offer to do it, "
-                f"do not ask permission, and do not call a tool for it again."
+                f"ACTION COMPLETED AND VERIFIED: you {did} the {outcome['device']}. "
+                f"A fresh read confirms it is {outcome['state']}.{reading} Tell them "
+                f"in one short line, past tense.{caveat} Do not call a tool again."
+            )
+        elif outcome["ok"]:
+            domain_blocks.append(
+                f"OUTCOME UNCERTAIN — DO NOT CLAIM SUCCESS: {outcome['detail']}\n"
+                f"Say in one line that the command was accepted but you could not read "
+                f"the device back, so its state is unconfirmed. Do not say it worked "
+                f"and do not say it failed."
             )
         else:
             domain_blocks.append(
-                f"ACTION FAILED: you tried to switch the {outcome['device']} "
-                f"{device_route['action']} and it did not work. Internal reason, for your "
-                f"understanding only: {outcome['detail']}\n"
-                f"Tell them in ONE line that it didn't switch, and that this is a limitation "
-                f"on Kroven's side, not something they did wrong. Translate the reason into "
-                f"plain speech — never repeat the internal wording and never name a protocol, "
-                f"library, encryption scheme, IP address or error code. 'I can't switch that "
-                f"one yet' is the right register. Do not claim it worked and do not retry."
+                f"ACTION DID NOT COMPLETE: nothing was changed. Internal reason, for "
+                f"your understanding only: {outcome['detail']}\n"
+                f"Tell them in ONE line that nothing was switched and why, in plain "
+                f"speech — never repeat the internal wording and never name a protocol, "
+                f"library, encryption scheme, IP address or error code. Never claim it "
+                f"worked, and do not retry."
             )
     elif device_route["needs_clarification"] and device_route["category"] in (
         "DEVICE_CONTROL", "STATUS_QUERY"

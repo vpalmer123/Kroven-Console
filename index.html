@@ -888,13 +888,34 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
   // the existing draw calls — still in CSS pixels — land on real device
   // pixels. Re-applied when the app resizes the canvas, because assigning
   // width or height resets the transform.
+  // Assigning width or height CLEARS a canvas. The app owns the drawing loop
+  // and has no idea this happened, so sharpening after it has painted wipes
+  // the map and nothing repaints it — which is why the map was blank on
+  // phones (dpr 2-3) and fine on desktop (dpr 1, where this returned early
+  // and never touched anything).
+  //
+  // So: resize, then ask the app to redraw by firing the resize event it
+  // already listens for. Attempts are capped, because if the app responds by
+  // sizing the canvas back to CSS pixels the two of us would trade resizes
+  // forever. Giving up leaves a slightly soft map, which is far better than
+  // an empty one.
+  var sharpenTries = 0, sharpenAt = "";
   function sharpenCanvas(c) {
     var dpr = window.devicePixelRatio || 1;
     if (dpr <= 1) return;                       // nothing to gain
     var r = c.getBoundingClientRect();
     if (!r.width || !r.height) return;
+
+    // A real layout change — rotation, window resize — deserves a fresh set
+    // of attempts. Without this the cap would be spent once and never allow
+    // sharpening again for the rest of the session.
+    var at = Math.round(r.width) + "x" + Math.round(r.height);
+    if (at !== sharpenAt) { sharpenAt = at; sharpenTries = 0; }
+    if (sharpenTries > 6) return;               // stop fighting the app
     var wantW = Math.round(r.width * dpr), wantH = Math.round(r.height * dpr);
     if (c.width === wantW && c.height === wantH) return;
+
+    sharpenTries++;
     c.style.width = r.width + "px";
     c.style.height = r.height + "px";
     c.width = wantW;
@@ -905,6 +926,8 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
       ctx.imageSmoothingEnabled = true;
       if ("imageSmoothingQuality" in ctx) ctx.imageSmoothingQuality = "high";
     }
+    // Prompt the app to repaint into the canvas we just cleared.
+    try { window.dispatchEvent(new Event("resize")); } catch (e) {}
   }
 
   setInterval(function () {
@@ -952,7 +975,14 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
     w.style.cssText =
       "position:fixed;z-index:2147480500;left:14px;" +
       "bottom:calc(14px + env(safe-area-inset-bottom));" +
-      "max-width:min(560px, calc(100vw - 380px));box-sizing:border-box;" +
+      // On a phone there is no room beside the devices panel, so the band
+      // takes the full width instead of a 560px column squeezed into ~375px.
+      // The old max-width subtracted 380px for a side panel that is not
+      // there on mobile, leaving a sliver that overlapped the map caption.
+      (window.matchMedia("(max-width: 700px)").matches
+        ? "right:14px;max-width:none;"
+        : "max-width:min(560px, calc(100vw - 380px));") +
+      "box-sizing:border-box;" +
       "background:rgba(15,23,36,.94);border:1px solid #24304A;border-radius:12px;" +
       "padding:9px 11px;backdrop-filter:blur(6px);overflow:hidden;" +
       "font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif";

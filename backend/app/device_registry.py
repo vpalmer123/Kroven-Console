@@ -82,12 +82,35 @@ def list_devices(household_id: str) -> list[dict]:
                 type(e).__name__, TABLE_RETRY_SECONDS,
             )
 
-    # Cached, because these dicts ARE the state store until migration 005 is
-    # applied. Rebuilding them per call would throw away every state write-back
-    # the moment it was made.
-    if household_id not in _env_cache:
-        _env_cache[household_id] = _env_devices(household_id)
-    return _env_cache[household_id]
+    # A household with no rows has no devices. Full stop.
+    #
+    # This used to fall through to _env_devices(), which builds devices out of
+    # the SERVER's own environment variables — so any account that had
+    # connected nothing was handed the operator's plugs, named from
+    # KASA_DEVICE_NAME / SHELLY_DEVICE_NAME, complete with live state. That is
+    # "if no device exists, show PS5": a fixture leaking into production
+    # inventory, and a cross-tenant one at that. Production only escaped it
+    # because Railway happens not to set those variables.
+    #
+    # Fixtures now require an explicit opt-in AND must be the operator's own
+    # household, so they cannot appear in anyone else's inventory even by
+    # accident.
+    if _fixtures_enabled() and _is_owner(household_id):
+        if household_id not in _env_cache:
+            _env_cache[household_id] = _env_devices(household_id)
+        return _env_cache[household_id]
+
+    return []
+
+
+def _fixtures_enabled() -> bool:
+    """Whether env-derived development devices may be used at all."""
+    return os.environ.get("KROVEN_DEV_FIXTURES", "").strip().lower() in ("1", "true", "yes")
+
+
+def _is_owner(household_id: str) -> bool:
+    owner = os.environ.get("KROVEN_HOUSEHOLD_ID", "").strip()
+    return bool(owner and household_id and str(household_id).strip() == owner)
 
 
 _env_cache: dict[str, list[dict]] = {}

@@ -508,21 +508,43 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
       "font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif";
     wrap.innerHTML =
       '<div id="kd-head" style="display:flex;align-items:center;gap:9px;padding:11px 13px;cursor:pointer">' +
-        '<span style="width:7px;height:7px;border-radius:50%;background:#4FC3B0;flex:0 0 auto"></span>' +
+        '<span id="kd-dot" style="width:7px;height:7px;border-radius:50%;background:#3F4C63;flex:0 0 auto"></span>' +
         '<span style="flex:1;font-size:12.5px;font-weight:700;color:#E8EDF7;letter-spacing:.03em">DEVICES</span>' +
         '<span id="kd-count" style="font-size:11px;color:#5C6B85"></span>' +
+        '<button id="kd-add" title="Add a device" aria-label="Add a device" ' +
+        'style="border:1px solid #2b3a5c;background:transparent;color:#A9B8D0;width:22px;height:22px;' +
+        'border-radius:6px;font-size:14px;line-height:1;cursor:pointer;padding:0;font-family:inherit;' +
+        'display:flex;align-items:center;justify-content:center">+</button>' +
         '<span id="kd-chev" style="color:#5C6B85;font-size:12px">\u25B4</span>' +
       '</div>' +
       '<div id="kd-body" style="display:none;border-top:1px solid #1B2436">' +
         '<div id="kd-list" style="padding:4px 0"></div>' +
-        '<div id="kd-pair" style="border-top:1px solid #1B2436;padding:12px 13px"></div>' +
+        '<div id="kd-pair" style="display:none;border-top:1px solid #1B2436;padding:12px 13px"></div>' +
       '</div>';
     document.body.appendChild(wrap);
     document.getElementById("kd-head").addEventListener("click", function () {
       setDevOpen(!devOpen);
     });
+    document.getElementById("kd-add").addEventListener("click", function (e) {
+      // Opening the add flow is its own action; it must not also collapse the
+      // panel by bubbling into the header toggle.
+      e.stopPropagation();
+      if (!devOpen) setDevOpen(true);
+      togglePairForm(true);
+    });
     setDevOpen(devOpen);
     refreshDevices();
+  }
+
+  // Authentication and discovery are separate states, and so are their
+  // screens: opening this form connects nothing by itself.
+  function togglePairForm(show) {
+    var el = document.getElementById("kd-pair");
+    var list = document.getElementById("kd-list");
+    if (!el) return;
+    el.style.display = show ? "block" : "none";
+    if (list) list.style.display = show ? "none" : "block";
+    if (show) paintPair();
   }
 
   function setDevOpen(v) {
@@ -552,9 +574,22 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
           return v.supported !== false;
         });
         count.textContent = devs.length ? devs.length + "" : "none";
+        var dot = document.getElementById("kd-dot");
+        if (dot) dot.style.background = devs.length ? "#4FC3B0" : "#3F4C63";
+
         if (!devs.length) {
-          list.innerHTML = '<div style="padding:12px 13px;font-size:12px;color:#7D8CA6">' +
-            'Nothing connected yet. Add a device below.</div>';
+          // A genuine empty state. Nothing is invented to fill it: no sample
+          // device, no placeholder wattage, no fabricated switch state.
+          list.innerHTML =
+            '<div style="padding:18px 14px;text-align:center">' +
+              '<div style="font-size:12.5px;color:#8494AD;line-height:1.5">' +
+                'Nothing connected yet.</div>' +
+              '<button id="kd-empty-add" style="margin-top:11px;padding:9px 16px;border-radius:8px;' +
+              'border:1px solid #2F6BFF;background:rgba(47,107,255,.14);color:#8FB3FF;font-size:12px;' +
+              'font-weight:700;cursor:pointer;font-family:inherit">+  Connect a device</button>' +
+            '</div>';
+          var ea = document.getElementById("kd-empty-add");
+          if (ea) ea.addEventListener("click", function () { togglePairForm(true); });
           return;
         }
         window.__kdDevs = devs;
@@ -563,7 +598,14 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
           var on = v.state === "on";
           var canSwitch = v.controllable && v.online;
           var shedOn = !!(v.auto_shed && v.auto_shed.enabled);
-          var sub = [v.kind, v.signal_type].filter(Boolean).join(" \u00b7 ");
+          // Built from the normalised model: what kind of thing it is, then
+          // the provider underneath. The device's own label never decides
+          // this — a plug called "PS5" is still a smart plug.
+          var TYPE_LABEL = { smart_plug: "Smart Plug", relay: "Relay",
+                             sensor: "Sensor", ev_charger: "EV Charger",
+                             hvac: "HVAC", unknown: "Device" };
+          var sub = TYPE_LABEL[v.device_type] || "Device";
+          if (v.provider) sub += " \u00b7 " + v.provider;
           if (v.model) sub += " \u00b7 " + v.model;
           return '<div style="padding:11px 13px;border-bottom:1px solid #151D2C">' +
             '<div style="display:flex;align-items:center;gap:9px">' +
@@ -668,6 +710,12 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
     var b = BRAND[pairBrand];
     var usable = pairBrand === "shelly";
     host.innerHTML =
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:11px">' +
+        '<button id="kp-back" aria-label="Back" style="border:0;background:transparent;' +
+        'color:#5C6B85;font-size:15px;cursor:pointer;padding:0 2px;font-family:inherit">\u2190</button>' +
+        '<span style="font-size:11px;letter-spacing:.1em;color:#5C6B85;font-weight:700">' +
+        'CONNECT AN INTEGRATION</span>' +
+      '</div>' +
       '<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">' +
         '<span style="width:26px;height:26px;border-radius:7px;display:flex;align-items:center;' +
         'justify-content:center;background:' + b.tint + '1f;border:1px solid ' + b.tint + '3d;flex:0 0 auto">' +
@@ -692,6 +740,8 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
         : '') +
       '<div id="kp-msg" role="alert" style="font-size:11px;min-height:15px;margin-top:7px;' +
       'line-height:1.4;color:#FF6B6B"></div>';
+    var back = document.getElementById("kp-back");
+    if (back) back.addEventListener("click", function () { togglePairForm(false); });
     var sel = document.getElementById("kp-brand");
     sel.value = pairBrand;
     sel.addEventListener("change", function () { pairBrand = sel.value; paintPair(); });
@@ -713,9 +763,12 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
       .then(function (d) {
         if (d && d.ok) {
           msg.style.color = "#5BD98A"; msg.textContent = d.detail;
-          refreshDevices();
           if (keyEl) keyEl.value = "";
           go.disabled = false; go.textContent = "Connect";
+          refreshDevices();
+          // Only devices that were actually discovered exist now, so show the
+          // inventory rather than leaving the credential form up.
+          setTimeout(function () { togglePairForm(false); }, 700);
           return;
         }
         msg.style.color = "#FF6B6B";

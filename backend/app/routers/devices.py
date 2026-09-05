@@ -32,6 +32,37 @@ router = APIRouter()
 SUPPORTED_KINDS = {"shelly"}
 
 
+def _fixtures_visible() -> bool:
+    """Whether non-discovered rows may be listed. Development only."""
+    return os.environ.get("KROVEN_DEV_FIXTURES", "").strip().lower() in ("1", "true", "yes")
+
+
+def _device_type(device: dict, meta: dict) -> str:
+    """Normalised device type, from provider metadata — never from the name.
+
+    A plug a user has called "PS5" is a smart plug. Reading the label would
+    make Kroven claim to know about a console it has no integration with.
+    """
+    category = (meta.get("category") or "").lower()
+    if category == "relay":
+        return "smart_plug"
+    if category in ("sensor", "sensors"):
+        return "sensor"
+    if category:
+        return category
+    return "smart_plug" if device.get("controllable") else "unknown"
+
+
+def _capabilities(device: dict) -> list[str]:
+    """What this device can actually do, from the registry, not assumed."""
+    caps = ["read_state"]
+    if device.get("controllable"):
+        caps.append("switch")
+    if (device.get("kind") or "").lower() in SUPPORTED_KINDS:
+        caps.append("telemetry")
+    return caps
+
+
 def _require_control_token(supplied: str | None) -> None:
     """Gate physical actuation behind a shared secret.
 
@@ -72,6 +103,14 @@ class ResolveRequest(BaseModel):
 @router.get("")
 async def get_devices(household_id: str):
     devices = list_devices(household_id)
+
+    # Only genuinely discovered devices count as inventory. A row that was
+    # seeded from server configuration is not something this user connected,
+    # and must not be presented as though they had.
+    if not _fixtures_visible():
+        devices = [d for d in devices
+                   if ((d.get("meta") or {}).get("source") or "seeded") == "discovered"]
+
     if not devices:
         return {
             "configured": False,
@@ -106,8 +145,22 @@ async def get_devices(household_id: str):
         meta = d.get("meta") or {}
         out.append({
             "id": d["id"],
-            "name": d["name"],
+            "name": d["name"] or "Untitled device",
+            # What the vendor actually called it, kept distinct from the
+            # display name so a rename never hides what was discovered.
+            "provider_name": meta.get("provider_name"),
+            "provider": d["kind"],
             "kind": d["kind"],
+            # How this row came to exist. 'discovered' means a provider was
+            # authenticated and returned it; anything else is a fixture or a
+            # seeded row and has no business in a real inventory.
+            "source": meta.get("source") or "seeded",
+            "discovered_at": meta.get("discovered_at"),
+            # Normalised type, driven by provider metadata rather than the
+            # name. A device called "PS5" is still a smart plug.
+            "device_type": _device_type(d, meta),
+            "category": meta.get("category"),
+            "capabilities": _capabilities(d),
             # The plug itself: real model reported by the vendor at pairing, not
             # a guess. Shown so the user can tell which physical unit this row
             # is when they own more than one.

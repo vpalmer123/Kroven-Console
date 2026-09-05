@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import datetime, timezone
 
 import httpx
 from fastapi import APIRouter, Header
@@ -88,9 +89,15 @@ async def _shelly_devices(server: str, auth_key: str) -> list[dict]:
         # Only things with a relay can be switched. A sensor paired here would
         # otherwise show a control that does nothing.
         switchable = (d.get("category") == "relay") or d.get("mode") == "relay"
+        raw_name = (d.get("name") or "").strip()
         found.append({
             "cloud_id": dev_id,
-            "name": (d.get("name") or "").strip() or f"Shelly {dev_id[-4:]}",
+            # The vendor's name, verbatim, or nothing. "Untitled device" is a
+            # placeholder chosen here, not a name pretending to come from the
+            # provider — provider_name records the difference.
+            "provider_name": raw_name or None,
+            "name": raw_name or "Untitled device",
+            "category": d.get("category"),
             "model": d.get("type"),
             "gen": d.get("gen"),
             "channel": int(d.get("channel") or 0),
@@ -183,12 +190,54 @@ async def pair(req: PairRequest, authorization: str | None = Header(default=None
                 "model": d["model"],
                 "gen": d["gen"],
                 "paired_via": "shelly_cloud",
+                # How this row came to exist. Only 'discovered' belongs in a
+                # real inventory: it means the provider was authenticated and
+                # returned this device. Anything else is a fixture and is
+                # filtered out of production listings.
+                "source": "discovered",
+                "discovered_at": datetime.now(timezone.utc).isoformat(),
+                # Exactly what the vendor called it, kept separate from the
+                # display name so a user rename never destroys the evidence of
+                # what was actually discovered.
+                "provider_name": d["provider_name"],
+                "category": d.get("category"),
                 "aliases": [],
             },
         }
+        # Identity is the provider's device id, not the name. Matching on name
+        # would create a second row the moment a user renames a plug in the
+        # vendor app, and would collide with an unrelated device that happens
+        # to share a name. Rediscovery has to update in place, never duplicate.
         try:
-            db.table("devices").upsert(row, on_conflict="household_id,name").execute()
-            saved.append({"name": d["name"], "model": d["model"], "online": d["online"]})
+            existing = (
+                db.table("devices").select("id,name,meta")
+                .eq("household_id", household).eq("kind", "shelly")
+                .execute().data
+            ) or []
+            match = next(
+                (e for e in existing
+                 if ((e.get("meta") or {}).get("cloud_device_id") == d["cloud_id"])),
+                None,
+            )
+
+            if match:
+                # Keep whatever the user renamed it to; refresh everything the
+                # provider owns.
+                merged = dict(match.get("meta") or {})
+                merged.update(row["meta"])
+                db.table("devices").update({
+                    "channel": row["channel"],
+                    "controllable": True,
+                    "host": None,
+                    "meta": merged,
+                }).eq("id", match["id"]).execute()
+                saved.append({"name": match.get("name") or d["name"],
+                              "model": d["model"], "online": d["online"],
+                              "updated": True})
+            else:
+                db.table("devices").upsert(row, on_conflict="household_id,name").execute()
+                saved.append({"name": d["name"], "model": d["model"],
+                              "online": d["online"], "updated": False})
         except Exception as e:
             logger.error("could not save %s: %s", d["name"], type(e).__name__)
             return _fail(500, f"Connected to Shelly but couldn't save {d['name']}.")

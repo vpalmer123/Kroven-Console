@@ -47,7 +47,8 @@ CATEGORIES = ("DEVICE_CONTROL", "STATUS_QUERY", "FORECAST_QUERY", "GENERAL_CHAT"
 SYSTEM = """You classify one message from a home energy assistant's user.
 
 Return ONLY a JSON object, no prose, no code fence:
-{"category": "...", "device": "...", "action": "...", "confidence": 0.0}
+{"category": "...", "device": "...", "action": "...", "confidence": 0.0,
+ "confirming": false}
 
 category must be exactly one of:
   DEVICE_CONTROL - they want something switched on or off RIGHT NOW
@@ -60,6 +61,11 @@ device: the device they mean, copied from THEIR DEVICES below. Use the exact
   named nothing, or if more than one device would fit equally well.
 action: "on", "off", or "toggle" for DEVICE_CONTROL; "" otherwise.
 confidence: 0.0-1.0, how sure you are of category AND device together.
+confirming: true ONLY when the previous assistant turn asked this user to
+  confirm a specific device action and this message agrees to it — "yes",
+  "do it", "go ahead", "yeah turn it off". It is false for a fresh command,
+  however clearly phrased, and false when nothing was proposed to confirm.
+  Earlier turns are provided above for exactly this judgement.
 
 Rules:
   - Only ever name a device from THEIR DEVICES. Never invent one.
@@ -74,7 +80,8 @@ Rules:
     confidence below 0.7 rather than picking."""
 
 
-async def classify(message: str, household_id: str) -> dict:
+async def classify(message: str, household_id: str,
+                   history: list[dict] | None = None) -> dict:
     """Classify one message against this household's real devices.
 
     Always returns a dict; never raises. On any failure it degrades to
@@ -84,6 +91,7 @@ async def classify(message: str, household_id: str) -> dict:
     """
     devices = list_devices(household_id)
     result = {
+        "confirming": False,
         "category": "GENERAL_CHAT",
         "device": None,
         "device_id": None,
@@ -100,7 +108,7 @@ async def classify(message: str, household_id: str) -> dict:
         return result
 
     try:
-        raw = await _ask_model(api_key, message, devices)
+        raw = await _ask_model(api_key, message, devices, history or [])
     except Exception as e:
         logger.warning("classifier call failed (%s); treating as chat", type(e).__name__)
         return result
@@ -115,6 +123,7 @@ async def classify(message: str, household_id: str) -> dict:
         confidence = 0.0
 
     result.update({
+        "confirming": bool(raw.get("confirming")) if category == "DEVICE_CONTROL" else False,
         "category": category,
         "action": (str(raw.get("action") or "").strip().lower() or None),
         "confidence": round(confidence, 2),
@@ -177,12 +186,28 @@ def _join(items: list[str]) -> str:
     return ", ".join(items[:-1]) + f" or {items[-1]}"
 
 
-async def _ask_model(api_key: str, message: str, devices: list[dict]) -> dict:
+async def _ask_model(api_key: str, message: str, devices: list[dict],
+                     history: list[dict] | None = None) -> dict:
     listing = "\n".join(
         f"  - {d.get('name')} ({d.get('kind')}, "
         f"{'switchable' if d.get('controllable', True) else 'read-only'})"
         for d in devices
     ) or "  (none registered)"
+
+    # A short tail of the conversation, so a bare "yes" can be understood as
+    # agreeing to whatever was just proposed rather than as its own request.
+    turns = []
+    for m in (history or [])[-4:]:
+        role, content = m.get("role"), m.get("content")
+        if role in ("user", "assistant") and isinstance(content, str) and content.strip():
+            if turns and turns[-1]["role"] == role:
+                turns[-1]["content"] += "\n\n" + content.strip()
+            else:
+                turns.append({"role": role, "content": content.strip()[:600]})
+    while turns and turns[0]["role"] != "user":
+        turns.pop(0)
+    if turns and turns[-1]["role"] == "user":
+        turns.pop()
 
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         r = await client.post(
@@ -196,7 +221,7 @@ async def _ask_model(api_key: str, message: str, devices: list[dict]) -> dict:
                 "model": MODEL,
                 "max_tokens": 200,
                 "system": SYSTEM + f"\n\nTHEIR DEVICES:\n{listing}",
-                "messages": [{"role": "user", "content": message.strip()}],
+                "messages": turns + [{"role": "user", "content": message.strip()}],
             },
         )
     r.raise_for_status()

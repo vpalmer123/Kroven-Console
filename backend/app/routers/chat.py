@@ -250,7 +250,10 @@ async def _run_tool(name: str, args: dict, db, household_id: str) -> tuple[str, 
     plain = (
         " Explain this to them in plain words: no protocol names, library names, "
         "IP addresses or error codes. A device that cannot be reached can neither be "
-        "read nor switched — never imply one of the two still works."
+        "read nor switched — never imply one of the two still works. If a device "
+        "reports OFF while also reporting a power draw above ~1 W, that is stale "
+        "telemetry from just after a switch, not standby: say the reading is settling "
+        "rather than inventing an explanation for an impossible state."
     )
 
     devices = list_devices(household_id)
@@ -511,21 +514,84 @@ async def chat(req: ChatRequest, authorization: str | None = Header(default=None
     # Keyword rules pick the context blocks above; they are not reliable enough
     # to fire an actuator, because "i'm done gaming" contains no switch verb and
     # "could you ever control this?" contains several.
-    registry = list_devices(req.household_id)
-    device_route = await classify_device_intent(req.message, req.household_id)
+    # Same inventory the console shows. A seeded row is not something this
+    # user connected, so the assistant must not offer to control it either.
+    registry = [
+        d for d in list_devices(req.household_id)
+        if ((d.get("meta") or {}).get("source") or "seeded") == "discovered"
+    ]
+    device_route = await classify_device_intent(req.message, req.household_id,
+                                            req.history or [])
 
-    if device_route["category"] == "DEVICE_CONTROL" and not device_route["needs_clarification"]:
+    # Proposing is not doing. A command switches real power, so the first
+    # request states what would happen and waits; only an explicit agreement
+    # to that proposal actuates. Without this, "turn off the ps5" cut power
+    # mid-sentence and the user found out afterwards.
+    if (device_route["category"] == "DEVICE_CONTROL"
+            and not device_route["needs_clarification"]
+            and not device_route.get("confirming")):
+        target = device_route["device"]
+        act = device_route["action"]
+        live = await control_device(device_route["device_id"], "status", req.household_id)
+        if not live["ok"]:
+            domain_blocks.append(
+                f"CANNOT ACT: they asked to switch the {target} {act}, but it cannot be "
+                f"reached right now. Internal reason: {live['detail']}\n"
+                f"Say in one line that you can't reach it, in plain words — no protocol "
+                f"names or error codes — and do not claim anything was switched."
+            )
+        elif live["state"] == act:
+            domain_blocks.append(
+                f"ALREADY IN THAT STATE: the {target} is already {act} "
+                f"(drawing {live['power_w']} W). Say so in one line. Do not switch "
+                f"anything and do not ask for confirmation."
+            )
+        else:
+            consequence = (
+                "power will actually be cut to whatever is plugged into it, so anything "
+                "mid-task can be interrupted"
+                if act == "off" else
+                "mains power comes back, though the device itself may still need "
+                "switching on by hand"
+            )
+            domain_blocks.append(
+                f"CONFIRMATION NEEDED — DO NOT ACT YET: they asked to switch the "
+                f"{target} {act}. It is currently {live['state']}, drawing "
+                f"{live['power_w']} W.\n"
+                f"In ONE short line: say what you are about to do, state plainly that "
+                f"{consequence}, and ask them to confirm. Do NOT say it is done, do NOT "
+                f"use past tense, and do NOT call a tool. Nothing has happened yet."
+            )
+
+    elif device_route["category"] == "DEVICE_CONTROL" and not device_route["needs_clarification"]:
         # Act first, then let the model narrate what actually happened. The
         # outcome is the hardware's answer, never the request echoed back.
         outcome = await control_device(
             device_route["device_id"], device_route["action"], req.household_id
         )
         if outcome["ok"]:
+            # Restoring power is not switching a device on. Closing a relay
+            # re-energises the socket; a console, a desktop, most AV gear all
+            # stay off until someone presses something. Saying "turned it on"
+            # is how a person discovers hours later that a download never
+            # resumed.
+            did = ("cut power to" if device_route["action"] == "off"
+                   else "restored power to")
+            caveat = ("" if device_route["action"] == "off" else
+                      " Add that the device itself may still need switching on by "
+                      "hand — you restored power, you did not turn the device on. "
+                      "Never write 'turned it on'.")
+            reading = (
+                f" The hardware reports {outcome['power_w']} W."
+                if isinstance(outcome.get("power_w"), (int, float))
+                and not (outcome["state"] == "off" and (outcome["power_w"] or 0) > 1)
+                else " Do not quote a wattage: the reading right after a switch is "
+                     "stale and may contradict the switch state."
+            )
             domain_blocks.append(
-                f"ACTION ALREADY TAKEN: you switched the {outcome['device']} "
-                f"{device_route['action']}. The hardware confirms it is now "
-                f"{outcome['state']} (drawing {outcome['power_w']} W). Tell them in one "
-                f"short line, past tense, as something you did. Do not offer to do it, "
+                f"ACTION ALREADY TAKEN: you {did} the {outcome['device']}. The hardware "
+                f"confirms it is now {outcome['state']}.{reading} Tell them in one short "
+                f"line, past tense, as something you did.{caveat} Do not offer to do it, "
                 f"do not ask permission, and do not call a tool for it again."
             )
         else:

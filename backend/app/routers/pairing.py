@@ -56,6 +56,11 @@ class PairRequest(BaseModel):
     auth_key: str = Field(min_length=8, max_length=512)
     server: str = Field(min_length=4, max_length=200)
     household_id: str | None = None
+    # What the user calls this thing. Optional, and blank by default: an empty
+    # field means "keep whatever the vendor calls it", never a name made up
+    # here. Only meaningful when the account holds a single switchable device,
+    # because one name cannot describe several.
+    label: str | None = Field(default=None, max_length=48)
 
 
 def _fail(status: int, detail: str) -> JSONResponse:
@@ -166,6 +171,12 @@ async def pair(req: PairRequest, authorization: str | None = Header(default=None
         return _fail(404, "That account has no devices on it yet.")
 
     db = get_db()
+    switchable = [d for d in devices if d["switchable"]]
+    label = (req.label or "").strip()
+    # A single name can only belong to a single device. With more than one
+    # discovered, the name is not silently attached to an arbitrary row — it is
+    # dropped, and the response says so.
+    label_applies = bool(label) and len(switchable) == 1
     saved, skipped = [], []
     for d in devices:
         if not d["switchable"]:
@@ -173,7 +184,7 @@ async def pair(req: PairRequest, authorization: str | None = Header(default=None
             continue
         row = {
             "household_id": household,
-            "name": d["name"],
+            "name": label if label_applies else d["name"],
             "kind": "shelly",
             # No LAN address on purpose: a home address is unreachable from the
             # deployed backend, and storing one would make build_adapter prefer
@@ -202,6 +213,9 @@ async def pair(req: PairRequest, authorization: str | None = Header(default=None
                 "provider_name": d["provider_name"],
                 "category": d.get("category"),
                 "aliases": [],
+                # A name the user typed outranks the vendor's on every later
+                # rediscovery; a name that came from the vendor does not.
+                "named_by_user": label_applies,
             },
         }
         # Identity is the provider's device id, not the name. Matching on name
@@ -222,16 +236,20 @@ async def pair(req: PairRequest, authorization: str | None = Header(default=None
 
             if match:
                 # Keep whatever the user renamed it to; refresh everything the
-                # provider owns.
+                # provider owns. A name typed on this pairing is a deliberate
+                # rename and does replace it.
                 merged = dict(match.get("meta") or {})
                 merged.update(row["meta"])
-                db.table("devices").update({
+                patch = {
                     "channel": row["channel"],
                     "controllable": True,
                     "host": None,
                     "meta": merged,
-                }).eq("id", match["id"]).execute()
-                saved.append({"name": match.get("name") or d["name"],
+                }
+                if label_applies:
+                    patch["name"] = label
+                db.table("devices").update(patch).eq("id", match["id"]).execute()
+                saved.append({"name": patch.get("name") or match.get("name") or d["name"],
                               "model": d["model"], "online": d["online"],
                               "updated": True})
             else:
@@ -252,7 +270,12 @@ async def pair(req: PairRequest, authorization: str | None = Header(default=None
         "ok": True,
         "connected": saved,
         "skipped": skipped,
+        "named": label if label_applies else None,
         "detail": f"Connected {len(saved)} device"
                   f"{'' if len(saved) == 1 else 's'}."
-                  + (f" Skipped {len(skipped)} without a switch." if skipped else ""),
+                  + (f" Skipped {len(skipped)} without a switch." if skipped else "")
+                  + (f" Named it {label}." if label_applies else "")
+                  + (" That account has several devices, so the name you typed "
+                     "wasn't used — rename them individually instead."
+                     if label and not label_applies else ""),
     }

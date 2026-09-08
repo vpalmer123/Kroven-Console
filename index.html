@@ -723,13 +723,13 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
         '<span style="min-width:0"><span style="display:block;line-height:1">' + b.mark + '</span>' +
         '<span style="display:block;font-size:10px;color:#7D8CA6;margin-top:2px">' + b.blurb + '</span></span>' +
       '</div>' +
-      '<select id="kp-brand" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:8px;' +
-      'border:1px solid #24304A;background:#141C2C;color:#E8EDF7;font-size:16px;margin-bottom:8px">' +
-        '<option value="shelly">Shelly</option>' +
-      '</select>' +
       '<div style="font-size:10.5px;color:#7D8CA6;line-height:1.5;margin-bottom:8px">' + b.help + '</div>' +
       (usable
-        ? '<input id="kp-server" placeholder="Server address" autocomplete="off" ' +
+        ? '<input id="kp-name" placeholder="Name this device" autocomplete="off" ' +
+          'maxlength="48" style="width:100%;box-sizing:border-box;padding:10px 11px;border-radius:8px;' +
+          'border:1px solid #24304A;background:#141C2C;color:#E8EDF7;font-size:16px;outline:none;' +
+          'margin-bottom:7px">' +
+          '<input id="kp-server" placeholder="Server address" autocomplete="off" ' +
           'style="width:100%;box-sizing:border-box;padding:10px 11px;border-radius:8px;border:1px solid #24304A;' +
           'background:#141C2C;color:#E8EDF7;font-size:16px;outline:none;margin-bottom:7px">' +
           '<input id="kp-key" placeholder="Authorization cloud key" autocomplete="off" ' +
@@ -742,9 +742,6 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
       'line-height:1.4;color:#FF6B6B"></div>';
     var back = document.getElementById("kp-back");
     if (back) back.addEventListener("click", function () { togglePairForm(false); });
-    var sel = document.getElementById("kp-brand");
-    sel.value = pairBrand;
-    sel.addEventListener("change", function () { pairBrand = sel.value; paintPair(); });
     var go = document.getElementById("kp-go");
     if (go) go.addEventListener("click", submitPair);
   }
@@ -752,12 +749,15 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
   function submitPair() {
     var msg = document.getElementById("kp-msg"), go = document.getElementById("kp-go");
     var srvEl = document.getElementById("kp-server"), keyEl = document.getElementById("kp-key");
+    var nameEl = document.getElementById("kp-name");
     var srv = srvEl ? srvEl.value.trim() : "", key = keyEl ? keyEl.value.trim() : "";
+    var label = nameEl ? nameEl.value.trim() : "";
     if (!srv || !key) { msg.style.color = "#FF6B6B"; msg.textContent = "Paste both the server and the key."; return; }
     go.disabled = true; go.textContent = "Connecting\u2026"; msg.textContent = "";
     fetch(API + "/api/pair/pair", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ provider: pairBrand, server: srv, auth_key: key,
+                             label: label || null,
                              household_id: localStorage.getItem(HH) })
     }).then(function (r) { return r.json(); })
       .then(function (d) {

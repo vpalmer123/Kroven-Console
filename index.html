@@ -474,7 +474,11 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
     }
   };
 
-  var pairBrand = "shelly";
+  // Nobody's account starts out being a Shelly account. Presenting a brand before
+  // the user has picked one states something about their home that Kroven does
+  // not know, and reads as though a device is already there.
+  var pairBrand = null;
+  var pairName = "";
   var devOpen = localStorage.getItem("kroven_dev_open") === "1";
 
   // What the numbers mean, in words. A closed relay with mains present and no
@@ -707,41 +711,98 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
   function paintPair() {
     var host = document.getElementById("kd-pair");
     if (!host) return;
-    var b = BRAND[pairBrand];
+    var b = pairBrand ? BRAND[pairBrand] : null;
     var usable = pairBrand === "shelly";
-    host.innerHTML =
+
+    var head =
       '<div style="display:flex;align-items:center;gap:8px;margin-bottom:11px">' +
         '<button id="kp-back" aria-label="Back" style="border:0;background:transparent;' +
         'color:#5C6B85;font-size:15px;cursor:pointer;padding:0 2px;font-family:inherit">\u2190</button>' +
         '<span style="font-size:11px;letter-spacing:.1em;color:#5C6B85;font-weight:700">' +
-        'CONNECT AN INTEGRATION</span>' +
-      '</div>' +
-      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">' +
-        '<span style="width:26px;height:26px;border-radius:7px;display:flex;align-items:center;' +
-        'justify-content:center;background:' + b.tint + '1f;border:1px solid ' + b.tint + '3d;flex:0 0 auto">' +
-        b.icon + '</span>' +
-        '<span style="min-width:0"><span style="display:block;line-height:1">' + b.mark + '</span>' +
-        '<span style="display:block;font-size:10px;color:#7D8CA6;margin-top:2px">' + b.blurb + '</span></span>' +
-      '</div>' +
-      '<div style="font-size:10.5px;color:#7D8CA6;line-height:1.5;margin-bottom:8px">' + b.help + '</div>' +
-      (usable
-        ? '<input id="kp-name" placeholder="Name this device" autocomplete="off" ' +
-          'maxlength="48" style="width:100%;box-sizing:border-box;padding:10px 11px;border-radius:8px;' +
-          'border:1px solid #24304A;background:#141C2C;color:#E8EDF7;font-size:16px;outline:none;' +
-          'margin-bottom:7px">' +
-          '<input id="kp-server" placeholder="Server address" autocomplete="off" ' +
-          'style="width:100%;box-sizing:border-box;padding:10px 11px;border-radius:8px;border:1px solid #24304A;' +
-          'background:#141C2C;color:#E8EDF7;font-size:16px;outline:none;margin-bottom:7px">' +
-          '<input id="kp-key" placeholder="Authorization cloud key" autocomplete="off" ' +
-          'style="width:100%;box-sizing:border-box;padding:10px 11px;border-radius:8px;border:1px solid #24304A;' +
-          'background:#141C2C;color:#E8EDF7;font-size:16px;outline:none">' +
-          '<button id="kp-go" style="width:100%;margin-top:8px;padding:10px;border-radius:8px;border:0;' +
-          'background:#2F6BFF;color:#fff;font-size:13px;font-weight:600;cursor:pointer">Connect</button>'
-        : '') +
-      '<div id="kp-msg" role="alert" style="font-size:11px;min-height:15px;margin-top:7px;' +
-      'line-height:1.4;color:#FF6B6B"></div>';
+        'CONNECT A DEVICE</span>' +
+      '</div>';
+
+    // The name comes first and stays blank. It is the one question only the
+    // user can answer; the brand is a fact about hardware they still have to
+    // pick, and neither is filled in on their behalf.
+    var nameField =
+      '<input id="kp-name" placeholder="Name this device" autocomplete="off" ' +
+      'maxlength="48" value="' + pairName.replace(/"/g, "&quot;") + '" ' +
+      'style="width:100%;box-sizing:border-box;padding:10px 11px;border-radius:8px;' +
+      'border:1px solid #24304A;background:#141C2C;color:#E8EDF7;font-size:16px;' +
+      'outline:none;margin-bottom:10px">';
+
+    if (!pairBrand) {
+      // Brands are offered, never assumed. Each keeps its own mark and colour,
+      // so the choice is recognisable without one of them being pre-made.
+      var tiles = Object.keys(BRAND).map(function (id) {
+        var t = BRAND[id];
+        return '<button class="kp-brandtile" data-brand="' + id + '" ' +
+          'style="width:100%;display:flex;align-items:center;gap:9px;text-align:left;' +
+          'padding:10px 11px;margin-bottom:7px;border-radius:9px;cursor:pointer;' +
+          'border:1px solid #24304A;background:#141C2C;font-family:inherit">' +
+            '<span style="width:26px;height:26px;border-radius:7px;display:flex;' +
+            'align-items:center;justify-content:center;background:' + t.tint + '1f;' +
+            'border:1px solid ' + t.tint + '3d;flex:0 0 auto">' + t.icon + '</span>' +
+            '<span style="min-width:0"><span style="display:block;line-height:1">' +
+            t.mark + '</span><span style="display:block;font-size:10px;color:#7D8CA6;' +
+            'margin-top:2px">' + t.blurb + '</span></span>' +
+          '</button>';
+      }).join("");
+      host.innerHTML = head + nameField +
+        '<div style="font-size:10.5px;color:#5C6B85;letter-spacing:.06em;' +
+        'font-weight:700;margin-bottom:7px">WHAT KIND OF DEVICE</div>' + tiles +
+        '<div id="kp-msg" role="alert" style="font-size:11px;min-height:15px;' +
+        'margin-top:7px;line-height:1.4;color:#FF6B6B"></div>';
+    } else {
+      host.innerHTML = head + nameField +
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">' +
+          '<span style="width:26px;height:26px;border-radius:7px;display:flex;align-items:center;' +
+          'justify-content:center;background:' + b.tint + '1f;border:1px solid ' + b.tint + '3d;flex:0 0 auto">' +
+          b.icon + '</span>' +
+          '<span style="min-width:0;flex:1"><span style="display:block;line-height:1">' + b.mark + '</span>' +
+          '<span style="display:block;font-size:10px;color:#7D8CA6;margin-top:2px">' + b.blurb + '</span></span>' +
+          '<button id="kp-change" style="border:0;background:transparent;color:#5C6B85;' +
+          'font-size:10.5px;cursor:pointer;font-family:inherit;padding:2px 0">Change</button>' +
+        '</div>' +
+        '<div style="font-size:10.5px;color:#7D8CA6;line-height:1.5;margin-bottom:8px">' + b.help + '</div>' +
+        (usable
+          ? '<input id="kp-server" placeholder="Server address" autocomplete="off" ' +
+            'style="width:100%;box-sizing:border-box;padding:10px 11px;border-radius:8px;border:1px solid #24304A;' +
+            'background:#141C2C;color:#E8EDF7;font-size:16px;outline:none;margin-bottom:7px">' +
+            '<input id="kp-key" placeholder="Authorization cloud key" autocomplete="off" ' +
+            'style="width:100%;box-sizing:border-box;padding:10px 11px;border-radius:8px;border:1px solid #24304A;' +
+            'background:#141C2C;color:#E8EDF7;font-size:16px;outline:none">' +
+            '<button id="kp-go" style="width:100%;margin-top:8px;padding:10px;border-radius:8px;border:0;' +
+            'background:#2F6BFF;color:#fff;font-size:13px;font-weight:600;cursor:pointer">Connect</button>'
+          : '') +
+        '<div id="kp-msg" role="alert" style="font-size:11px;min-height:15px;margin-top:7px;' +
+        'line-height:1.4;color:#FF6B6B"></div>';
+    }
+
     var back = document.getElementById("kp-back");
-    if (back) back.addEventListener("click", function () { togglePairForm(false); });
+    if (back) back.addEventListener("click", function () {
+      // Back out of the brand, then out of the form, so a mis-tap costs one
+      // step rather than the whole flow.
+      if (pairBrand) { pairBrand = null; paintPair(); }
+      else { pairName = ""; togglePairForm(false); }
+    });
+
+    // Typed names survive every repaint here, so choosing or changing a brand
+    // never silently discards what the user wrote.
+    var nameEl = document.getElementById("kp-name");
+    if (nameEl) nameEl.addEventListener("input", function () { pairName = nameEl.value; });
+
+    var chg = document.getElementById("kp-change");
+    if (chg) chg.addEventListener("click", function () { pairBrand = null; paintPair(); });
+
+    Array.prototype.forEach.call(host.querySelectorAll(".kp-brandtile"), function (t) {
+      t.addEventListener("click", function () {
+        pairBrand = t.getAttribute("data-brand");
+        paintPair();
+      });
+    });
+
     var go = document.getElementById("kp-go");
     if (go) go.addEventListener("click", submitPair);
   }
@@ -751,7 +812,7 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
     var srvEl = document.getElementById("kp-server"), keyEl = document.getElementById("kp-key");
     var nameEl = document.getElementById("kp-name");
     var srv = srvEl ? srvEl.value.trim() : "", key = keyEl ? keyEl.value.trim() : "";
-    var label = nameEl ? nameEl.value.trim() : "";
+    var label = (nameEl ? nameEl.value : pairName).trim();
     if (!srv || !key) { msg.style.color = "#FF6B6B"; msg.textContent = "Paste both the server and the key."; return; }
     go.disabled = true; go.textContent = "Connecting\u2026"; msg.textContent = "";
     fetch(API + "/api/pair/pair", {
@@ -764,6 +825,7 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
         if (d && d.ok) {
           msg.style.color = "#5BD98A"; msg.textContent = d.detail;
           if (keyEl) keyEl.value = "";
+          pairName = ""; pairBrand = null;
           go.disabled = false; go.textContent = "Connect";
           refreshDevices();
           // Only devices that were actually discovered exist now, so show the

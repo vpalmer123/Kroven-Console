@@ -25,3 +25,6 @@ Thumbs.db
 
 # Readings buffered to disk when Supabase is unreachable
 energy_logger_buffer.jsonl
+
+# Local preview config
+.claude/launch.json

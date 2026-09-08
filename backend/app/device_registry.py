@@ -1,10 +1,11 @@
 """
 The device registry, and the single function that actuates anything.
 
-Everything Kroven can touch is a row in `devices`. Nothing in this module knows
-that a PS5 or an extension cord exists — names come from the database (or, until
-migration 005 is applied, from the env vars the logger already reads). A new
-plug becomes controllable by inserting a row, never by editing code.
+Everything Kroven can touch is a row in `devices`, and a row exists only because
+the user completed a connection. Nothing in this module knows any brand, model or
+appliance: names come from the database, never from literals and never from the
+server's own environment. A device becomes controllable by being connected, never
+by editing code or setting a variable.
 
     control_device(device_id, action)
 
@@ -25,7 +26,6 @@ import asyncio
 import logging
 import os
 import re
-import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -44,10 +44,6 @@ AMBIGUITY_MARGIN = 0.08
 # How long to let a load ramp before re-reading power after switching on.
 SETTLE_SECONDS = 1.5
 
-# How long to serve env-derived devices after a registry read fails, before
-# trying the database again.
-TABLE_RETRY_SECONDS = 60
-_table_unavailable_until = 0.0
 
 
 # --------------------------------------------------------------------------
@@ -55,121 +51,36 @@ _table_unavailable_until = 0.0
 # --------------------------------------------------------------------------
 
 def list_devices(household_id: str) -> list[dict]:
-    """Every device for a household, from the registry, env as fallback."""
-    global _table_unavailable_until
+    """Every device for a household. Empty until they have connected one.
 
-    if time.monotonic() >= _table_unavailable_until:
-        try:
-            rows = (
-                get_db().table("devices")
-                .select("*")
-                .eq("household_id", household_id)
-                .order("name")
-                .execute()
-                .data
-            ) or []
-            if rows:
-                return rows
-        except Exception as e:
-            # Back off, do not give up. A transient network blip once latched
-            # this permanently, so a process would keep serving env-derived
-            # devices — wrong names, wrong roles, no persisted state — until it
-            # was restarted, long after Supabase had recovered.
-            _table_unavailable_until = time.monotonic() + TABLE_RETRY_SECONDS
-            logger.warning(
-                "devices table unavailable (%s); using env-configured devices "
-                "and retrying in %ds.",
-                type(e).__name__, TABLE_RETRY_SECONDS,
-            )
+    There is no fallback. A household with no rows has no devices, and an
+    unreadable table means Kroven does not know what they have — neither case
+    is an invitation to invent something.
 
-    # A household with no rows has no devices. Full stop.
-    #
-    # This used to fall through to _env_devices(), which builds devices out of
-    # the SERVER's own environment variables — so any account that had
-    # connected nothing was handed the operator's plugs, named from
-    # KASA_DEVICE_NAME / SHELLY_DEVICE_NAME, complete with live state. That is
-    # "if no device exists, show PS5": a fixture leaking into production
-    # inventory, and a cross-tenant one at that. Production only escaped it
-    # because Railway happens not to set those variables.
-    #
-    # Fixtures now require an explicit opt-in AND must be the operator's own
-    # household, so they cannot appear in anyone else's inventory even by
-    # accident.
-    if _fixtures_enabled() and _is_owner(household_id):
-        if household_id not in _env_cache:
-            _env_cache[household_id] = _env_devices(household_id)
-        return _env_cache[household_id]
-
-    return []
-
-
-def _fixtures_enabled() -> bool:
-    """Whether env-derived development devices may be used at all."""
-    return os.environ.get("KROVEN_DEV_FIXTURES", "").strip().lower() in ("1", "true", "yes")
-
-
-def _is_owner(household_id: str) -> bool:
-    owner = os.environ.get("KROVEN_HOUSEHOLD_ID", "").strip()
-    return bool(owner and household_id and str(household_id).strip() == owner)
-
-
-_env_cache: dict[str, list[dict]] = {}
-
-
-def _env_devices(household_id: str) -> list[dict]:
-    """Devices implied by the env vars the logger already uses.
-
-    Keeps control working before migration 005 is applied. The names still come
-    from configuration (KASA_DEVICE_NAME / SHELLY_DEVICE_NAME), never literals,
-    so renaming a plug is a config change and nothing here has to be touched.
+    This used to fall through to devices built out of the SERVER's own
+    environment variables, so any account that had connected nothing was handed
+    the operator's plugs, named from KASA_DEVICE_NAME / SHELLY_DEVICE_NAME,
+    complete with live state. That is "if no device exists, show a Shelly": a
+    fixture leaking into production inventory, and a cross-tenant one at that.
+    The variables are gone from this path entirely, so no combination of
+    configuration can put a device in front of a user who did not connect it.
     """
-    out: list[dict] = []
-
-    kasa_host = os.environ.get("KASA_HOST", "").strip()
-    if kasa_host:
-        out.append({
-            "id": f"env:kasa:{kasa_host}",
-            "household_id": household_id,
-            "name": os.environ.get("KASA_DEVICE_NAME", "kasa plug"),
-            "kind": "kasa",
-            "host": kasa_host,
-            "channel": 0,
-            # One appliance behind this plug, so its trace is that appliance.
-            "signal_type": "dedicated",
-            "controllable": True,
-            "state": None,
-            "meta": {"aliases": _aliases("KASA_DEVICE_ALIASES")},
-        })
-
-    shelly_host = os.environ.get("SHELLY_HOST", "").strip()
-    if shelly_host:
-        out.append({
-            "id": f"env:shelly:{shelly_host}",
-            "household_id": household_id,
-            "name": os.environ.get("SHELLY_DEVICE_NAME", "shelly plug"),
-            "kind": "shelly",
-            "host": shelly_host,
-            "channel": int(os.environ.get("SHELLY_CHANNEL", "0")),
-            # Shared extension cord: the trace is a sum of several loads.
-            "signal_type": "aggregate",
-            # Read-only by product decision, not by capability — the hardware
-            # switches fine. Env-gated so enabling it is a config change and
-            # the default stays off.
-            "controllable": os.environ.get("SHELLY_CONTROLLABLE", "").strip().lower()
-                            in ("1", "true", "yes"),
-            "state": None,
-            "meta": {
-                "read_only_reason": "aggregate circuit, actuation not enabled yet",
-                "aliases": _aliases("SHELLY_DEVICE_ALIASES"),
-            },
-        })
-
-    return out
-
-
-def _aliases(var: str) -> list[str]:
-    """Comma-separated alternate names from config, e.g. 'playstation,console'."""
-    return [a.strip() for a in os.environ.get(var, "").split(",") if a.strip()]
+    try:
+        return (
+            get_db().table("devices")
+            .select("*")
+            .eq("household_id", household_id)
+            .order("name")
+            .execute()
+            .data
+        ) or []
+    except Exception as e:
+        # Not knowing is reported as not knowing. Serving a guess here once
+        # meant wrong names, wrong roles and no persisted state, presented with
+        # the same confidence as the real thing.
+        logger.warning("devices table unavailable (%s); reporting no devices",
+                       type(e).__name__)
+        return []
 
 
 def get_device(household_id: str, device_id: str) -> dict | None:

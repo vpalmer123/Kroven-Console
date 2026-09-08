@@ -693,6 +693,23 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
   var FIELD_CSS = "width:100%;box-sizing:border-box;padding:10px 11px;border-radius:8px;" +
     "border:1px solid #24304A;background:#141C2C;color:#E8EDF7;font-size:16px;outline:none;";
 
+  // Browsers and password managers ignore autocomplete="off" on ordinary text
+  // fields whenever their own heuristics disagree, and they match on the field
+  // NAME. A field that has been called the same thing across visits gets
+  // refilled with whatever was typed into it before — which is how a value the
+  // user has already been told is gone reappears on its own.
+  //
+  // So no field keeps a stable name. Each render mints a fresh one, which
+  // matches nothing any manager has stored, and the explicit opt-outs below
+  // cover the managers that key off markup instead.
+  var NO_FILL_N = 0;
+  function noFill(id) {
+    NO_FILL_N += 1;
+    return 'name="k' + Date.now().toString(36) + NO_FILL_N + id + '" autocomplete="off" ' +
+           'autocapitalize="off" autocorrect="off" spellcheck="false" ' +
+           'data-lpignore="true" data-1p-ignore data-bwignore data-form-type="other" ';
+  }
+
   function esc(v) {
     return String(v == null ? "" : v)
       .replace(/&/g, "&amp;").replace(/</g, "&lt;")
@@ -714,7 +731,7 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
     // The name comes first and stays blank. It is the one question only the
     // user can answer, and it is about their device, not about a product.
     var nameField =
-      '<input id="kp-name" placeholder="Name this device" autocomplete="off" ' +
+      '<input id="kp-name" placeholder="Name this device" ' + noFill("nm") +
       'maxlength="48" value="' + esc(pairName) + '" ' +
       'style="' + FIELD_CSS + 'margin-bottom:10px">';
 
@@ -747,7 +764,7 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
       var fields = (m.fields || []).map(function (f) {
         return '<input id="kp-f-' + esc(f.id) + '" data-field="' + esc(f.id) + '" ' +
           'class="kp-field" placeholder="' + esc(f.label) + (f.required ? "" : " (optional)") + '" ' +
-          'autocomplete="off"' + (f.secret ? ' type="password"' : '') +
+          noFill(esc(f.id)) + (f.secret ? ' type="password"' : '') +
           ' value="' + esc(pairValues[f.id] || "") + '" ' +
           'style="' + FIELD_CSS + 'margin-bottom:7px">';
       }).join("");

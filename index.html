@@ -1044,101 +1044,6 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
   });
 
 
-  // ---- Regional weather band ---------------------------------------------
-  // Real NWS observations per county, laid out coast to inland so the fog/heat
-  // gradient the Bay Area actually has reads spatially, without pretending to
-  // be radar.
-  //
-  // Deliberately NOT painted onto the 3D geometry: doing that means guessing
-  // the app's projection, and a marker sitting in the wrong county is worse
-  // than an honest strip. Every value here comes from api.weather.gov via
-  // /api/regions — there is no Xweather or Vaisala connection in this project
-  // to reuse, and no value is synthesised.
-  var COAST_TO_INLAND = ["San Francisco", "San Mateo", "Marin", "Santa Clara",
-                         "Alameda", "Sonoma", "Napa", "Contra Costa", "Solano"];
-
-  function weatherLook(short, temp) {
-    var s = (short || "").toLowerCase();
-    if (s.indexOf("fog") >= 0 || s.indexOf("haze") >= 0 || s.indexOf("mist") >= 0)
-      return {icon: "\u2601", tint: "#8FA5C0", label: "fog"};
-    if (s.indexOf("rain") >= 0 || s.indexOf("shower") >= 0)
-      return {icon: "\u2614", tint: "#5B8FD9", label: "rain"};
-    if (s.indexOf("cloud") >= 0 || s.indexOf("overcast") >= 0)
-      return {icon: "\u26C5", tint: "#7D8CA6", label: "cloud"};
-    if (typeof temp === "number" && temp >= 85)
-      return {icon: "\u2600", tint: "#E8843F", label: "heat"};
-    if (typeof temp === "number" && temp >= 75)
-      return {icon: "\u2600", tint: "#E8B44F", label: "warm"};
-    return {icon: "\u2600", tint: "#5BC8D9", label: "clear"};
-  }
-
-  function buildWeatherBand() {
-    if (document.getElementById("kroven-wx")) return;
-    var w = document.createElement("div");
-    w.id = "kroven-wx";
-    w.style.cssText =
-      "position:fixed;z-index:2147480500;left:14px;" +
-      "bottom:calc(14px + env(safe-area-inset-bottom));" +
-      // On a phone there is no room beside the devices panel, so the band
-      // takes the full width instead of a 560px column squeezed into ~375px.
-      // The old max-width subtracted 380px for a side panel that is not
-      // there on mobile, leaving a sliver that overlapped the map caption.
-      (window.matchMedia("(max-width: 700px)").matches
-        ? "right:14px;max-width:none;"
-        : "max-width:min(560px, calc(100vw - 380px));") +
-      "box-sizing:border-box;" +
-      "background:rgba(15,23,36,.94);border:1px solid #24304A;border-radius:12px;" +
-      "padding:9px 11px;backdrop-filter:blur(6px);overflow:hidden;" +
-      "font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif";
-    w.innerHTML =
-      '<div style="display:flex;align-items:center;gap:7px;margin-bottom:7px">' +
-        '<span style="font-size:10px;letter-spacing:.14em;color:#5C6B85;font-weight:700">' +
-        'BAY AREA \u00b7 NOW</span>' +
-        '<span id="kwx-src" style="font-size:9px;color:#3F4C63;margin-left:auto"></span>' +
-      '</div>' +
-      '<div id="kwx-row" style="display:flex;gap:5px;overflow-x:auto"></div>';
-    document.body.appendChild(w);
-    refreshWeather();
-  }
-
-  function refreshWeather() {
-    _fetch(API + "/api/regions").then(function (r) { return r.json(); })
-      .then(function (d) {
-        var row = document.getElementById("kwx-row");
-        if (!row || !d || !d.regions) return;
-        var by = {};
-        d.regions.forEach(function (r) { by[r.county] = r; });
-        var ordered = COAST_TO_INLAND.map(function (c) { return by[c]; })
-                                     .filter(Boolean);
-        if (!ordered.length) ordered = d.regions;
-        row.innerHTML = ordered.map(function (r) {
-          var look = weatherLook(r.short, r.temp);
-          return '<div title="' + (r.short || "") + '" style="flex:0 0 auto;min-width:58px;' +
-            'text-align:center;padding:7px 6px;border-radius:9px;' +
-            'background:linear-gradient(180deg,' + look.tint + '26 0%, transparent 100%);' +
-            'border:1px solid ' + look.tint + '33">' +
-            '<div style="font-size:14px;line-height:1">' + look.icon + '</div>' +
-            '<div style="font-size:13px;font-weight:700;color:#E8EDF7;margin-top:3px">' +
-              (typeof r.temp === "number" ? r.temp + "\u00b0" : "\u2014") + '</div>' +
-            '<div style="font-size:8.5px;color:#7D8CA6;margin-top:2px;white-space:nowrap;' +
-            'overflow:hidden;text-overflow:ellipsis;max-width:56px">' +
-              (r.county || "") + '</div>' +
-          '</div>';
-        }).join("");
-        var src = document.getElementById("kwx-src");
-        if (src) src.textContent = d.source || "";
-      })
-      .catch(function () {});
-  }
-
-  function removeWeatherBand() {
-    var el = document.getElementById("kroven-wx");
-    if (el) el.remove();
-  }
-  setInterval(function () {
-    if (document.getElementById("kroven-wx")) refreshWeather();
-  }, 600000);
-
   function removeDevPanel() {
     var el = document.getElementById("kroven-dev");
     if (el) el.remove();
@@ -1150,9 +1055,9 @@ Energy Lead: `+R}h.current=[...v,{role:"assistant",content:N}],p("● done")}cat
     // logged in.
     var signedIn = !!localStorage.getItem(TK);
     if (signedIn && location.hash === "#console") {
-      buildDevPanel(); buildWeatherBand();
+      buildDevPanel();
     } else {
-      removeDevPanel(); removeWeatherBand();
+      removeDevPanel();
     }
   }
   // ---- Back/forward cache ------------------------------------------------

@@ -1,5 +1,15 @@
+# publish is the directory that gets UPLOADED, and it used to be the repo root.
+# That meant every deploy shipped the whole working tree: 31,543 files, of which
+# 31,395 were backend/venv — a Python virtualenv the site does not use and
+# cannot use. .gitignore does not help here, because a CLI deploy reads the disk
+# rather than the index, so the venv went up on every single publish and is what
+# exhausted the team's deploy credits.
+#
+# The site is one self-contained page with no local asset references, so the
+# publish directory holds exactly that. Functions are configured separately
+# below and are unaffected by this path.
 [build]
-  publish = "/"
+  publish = "site"
   functions = "netlify/functions"
 
 [functions]
